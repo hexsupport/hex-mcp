@@ -1,0 +1,11 @@
+[project]
+name = "hex-mm-mcp"
+version = "0.1.0"
+description = "This is a HexagonML MCP server that provides a Model context protocol interface for HexagonML ModelManager tools."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "mcp[cli]>=1.6.0",
+    "mmanager==2.3.4",
+    "ipython>=8.12.0",
+]
