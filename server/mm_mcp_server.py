@@ -7,6 +7,8 @@ import httpx
 import asyncio
 import os  
 from mmanager.mmanager import Model, Usecase
+from datetime import datetime
+from IPython.display import HTML
 
 import functools
 
@@ -292,6 +294,156 @@ async def get_usecase_data(ctx: Context) -> dict:
         }
     # Return the whole results for all usecases
     return str(data)
+
+CAUSAL_DISCOVERY_GRAPH_TYPE_OPTIONS = [
+    "HeatMap",
+    "2D_CausalDiscovery_Comparision",
+    "3D_CausalDiscovery_Comparision"
+]
+
+# === Utility Functions for Causal Graph Tools ===
+def validate_graph_type(graph_type: str, allowed: list, label: str) -> dict | None:
+    if graph_type not in allowed:
+        return {
+            "status": "error",
+            "message": f"Invalid graph_type '{graph_type}'. Allowed options: {allowed}",
+            "error_type": "InvalidGraphType",
+            "graph_type_label": label,
+        }
+    return None
+
+def extract_html_content(html_obj) -> str:
+    # Handles IPython.display.HTML or plain string
+    try:
+        return getattr(html_obj, "data", None) or getattr(html_obj, "value", None) or str(html_obj)
+    except Exception:
+        return str(html_obj)
+
+def save_html_to_file(html_content: str, prefix: str, model_id: str, graph_type: str) -> str:
+    import os
+    from datetime import datetime
+    output_dir = os.getenv("OUTPUT_DIR")
+    if not output_dir:
+        raise RuntimeError("OUTPUT_DIR environment variable must be set. Please set it in your .env file.")
+    os.makedirs(output_dir, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    file_name = f"{prefix}_{model_id}_{graph_type}_{timestamp}.html"
+    file_path = os.path.join(output_dir, file_name)
+    with open(file_path, "w", encoding="utf-8") as f:
+        f.write(html_content)
+    return file_path
+
+@mcp.tool()
+async def get_causal_discovery_graphs(ctx: Context, model_id: str, graph_type: str) -> dict:
+    """
+    Retrieve causal discovery graphs for a given model and save the HTML content to a file.
+
+    Args:
+        ctx: The MCP server context.
+        model_id: The unique identifier of the model.
+        graph_type: The type of graph to retrieve. Options: "HeatMap", "2D_CausalDiscovery_Comparision", "3D_CausalDiscovery_Comparision"
+    Returns:
+        dict: Contains the file path where the HTML was saved, or error info.
+    """
+    err = validate_graph_type(graph_type, CAUSAL_DISCOVERY_GRAPH_TYPE_OPTIONS, "causal_discovery")
+    if err:
+        return err
+    try:
+        model_client = get_mm_client(ctx, 'model')
+        html_obj = await asyncio.to_thread(model_client.get_causal_discovery_graphs, model_id, graph_type)
+        html_content = extract_html_content(html_obj)
+        file_path = save_html_to_file(html_content, "causal_discovery", model_id, graph_type)
+        return {
+            "status": "success",
+            "file_path": file_path,
+            "message": f"Causal discovery graph saved to {file_path}"
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Failed to get or save causal discovery graphs: {str(e)}",
+            "error_type": type(e).__name__
+        }
+
+
+CAUSAL_INFERENCE_GRAPH_TYPE_OPTIONS = [
+    "coeff_graph",
+    "top_effect_p_values",
+    "top_effect_rsquared"
+]
+@mcp.tool()
+async def get_causal_inference_graphs(ctx: Context, model_id: str, graph_type: str, treatment: str = None, outcome: str = None) -> dict:
+    """
+    Retrieve causal inference graphs for a given model.
+
+    Args:
+        ctx: The MCP server context.
+        model_id: The unique identifier of the model.
+        graph_type: The type of graph to retrieve. Options: "coeff_graph", "top_effect_p_values", "top_effect_rsquared"
+        treatment: Optional treatment variable.
+        outcome: Optional outcome variable.
+    Returns:
+        dict: Contains the file path where the HTML was saved, or error info.
+    """
+    err = validate_graph_type(graph_type, CAUSAL_INFERENCE_GRAPH_TYPE_OPTIONS, "causal_inference")
+    if err:
+        return err
+    try:
+        model_client = get_mm_client(ctx, 'model')
+        html_obj = await asyncio.to_thread(model_client.get_causal_inference_graphs, model_id, graph_type, treatment, outcome)
+        html_content = extract_html_content(html_obj)
+        file_path = save_html_to_file(html_content, "causal_inference", model_id, graph_type)
+        return {
+            "status": "success",
+            "file_path": file_path,
+            "message": f"Causal inference graph saved to {file_path}"
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Failed to get or save causal inference graphs: {str(e)}",
+            "error_type": type(e).__name__
+        }
+
+
+CAUSAL_INFERENCE_CORRELATION_GRAPH_TYPE_OPTIONS = [
+    "correlation_graph",
+    "causal_correlation_summary"
+]
+@mcp.tool()
+async def get_causal_inference_correlation(ctx: Context, model_id: str, graph_type: str, treatment: str, outcome: str) -> dict:
+    """
+    Retrieve causal inference correlation for a given model.
+
+    Args:
+        ctx: The MCP server context.
+        model_id: The unique identifier of the model.
+        graph_type: The type of graph/correlation to retrieve. Options: "correlation_graph", "causal_correlation_summary"
+        treatment: The treatment variable.
+        outcome: The outcome variable.
+    Returns:
+        dict: Contains the file path where the HTML was saved, or error info.
+    """
+    err = validate_graph_type(graph_type, CAUSAL_INFERENCE_CORRELATION_GRAPH_TYPE_OPTIONS, "causal_inference_correlation")
+    if err:
+        return err
+    try:
+        model_client = get_mm_client(ctx, 'model')
+        html_obj = await asyncio.to_thread(model_client.get_causal_inference_correlation, model_id, graph_type, treatment, outcome)
+        html_content = extract_html_content(html_obj)
+        file_path = save_html_to_file(html_content, "causal_inference_correlation", model_id, graph_type)
+        return {
+            "status": "success",
+            "file_path": file_path,
+            "message": f"Causal inference correlation saved to {file_path}"
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Failed to get or save causal inference correlation: {str(e)}",
+            "error_type": type(e).__name__
+        }
+
 
 async def main():
     await mcp.run_sse_async()
