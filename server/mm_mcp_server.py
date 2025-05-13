@@ -365,6 +365,35 @@ async def get_causal_discovery_graphs(ctx: Context, model_id: str, graph_type: s
             "error_type": type(e).__name__
         }
 
+@mcp.tool()
+async def get_causal_discovery_metrics(ctx: Context, model_id: str) -> dict:
+    """
+    Retrieve causal discovery metrics for a given model.
+
+    Args:
+        ctx: The MCP server context.
+        model_id (str): The unique identifier of the model.
+
+    Returns:
+        dict: The parsed JSON metrics if successful, or an error dict if the request or parsing fails.
+
+    Example structure of returned dict:
+        {
+            "metrics": [...],
+            ...
+        }
+    """
+    try:
+        model_client = get_mm_client(ctx, 'model')
+        resp = await asyncio.to_thread(model_client.get_causal_discovery_metrics, model_id)
+        if hasattr(resp, 'json'):
+            try:
+                return resp.json()
+            except Exception as json_exc:
+                return {"status": "error", "message": f"JSON decode error: {json_exc}"}
+        return resp
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
 
 CAUSAL_INFERENCE_GRAPH_TYPE_OPTIONS = [
     "coeff_graph",
