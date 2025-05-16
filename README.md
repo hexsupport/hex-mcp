@@ -53,29 +53,3 @@ This is a HexagonML MCP server that provides a Model context protocol interface 
   }
 }
 ```
-
-```json
-{
-  "mcpServers": {
-    "hex-mm-mcp-docker": {
-      "command": "docker",
-      "args": [
-        "run",
-        "--rm",
-        "-i",
-        "--network=host",
-        "-e", "SECRET_KEY",
-        "-e", "MM_API_BASE_URL",
-        "-e", "OUTPUT_DIR",
-        "-v", "<output-dir>:/output",
-        "<image-name>:<tag>"
-      ],
-      "env": {
-        "SECRET_KEY": "your-secret-key",
-        "MM_API_BASE_URL": "your-api-base-url",
-        "OUTPUT_DIR": "/output"
-      }
-    }
-  }
-}
-```
