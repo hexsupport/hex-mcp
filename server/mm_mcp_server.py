@@ -240,7 +240,7 @@ async def get_latest_metrics(ctx: Context, model_id: str, metric_type: str) -> d
     Args:
         ctx: The MCP server context containing authentication and configuration.
         model_id: The unique identifier of the model.
-        metric_type: The type of metric to retrieve (e.g., 'accuracy', 'loss').
+        metric_type: The type of metric to retrieve (e.g., 'Scoring Metric', 'Development Metric').
     Returns:
         dict: Response from the ModelManager service containing the latest metrics.
     """
@@ -473,6 +473,102 @@ async def get_causal_inference_correlation(ctx: Context, model_id: str, graph_ty
             "error_type": type(e).__name__
         }
 
+@mcp.tool()
+async def get_causal_analysis_insights(ctx: Context, file_path: str, treatment: str = None, outcome: str = None) -> dict:
+    """
+    Retrieve causal analysis insights for a given model using the ModelManager client.
+
+    Args:
+        ctx (Context): The MCP server context containing authentication and configuration.
+        file_path (str): Required. Path to the data file for analysis.
+        treatment (str, optional): The treatment variable name.
+        outcome (str, optional): The outcome variable name.
+
+    Returns:
+        dict: Response with the following structure:
+            - On success: {"status": "success", "data": <insights_data>, "message": <success_message>}
+            - On validation error: {"status": "error", "message": <error_details>, "error_type": "ValidationError"}
+            - On other errors: {"status": "error", "message": <error_details>, "error_type": <exception_name>}
+
+    Error Handling:
+        - Validates required parameters before making the request
+        - Handles file existence errors separately
+        - Processes API errors from the ModelManager service
+        - Captures and categorizes all other exceptions
+    """
+    # Validate input parameters
+    if not file_path:
+        return {
+            "status": "error",
+            "message": "Missing required parameter: file_path",
+            "error_type": "ValidationError"
+        }
+
+    # Check if file exists before proceeding
+    if not os.path.exists(file_path):
+        return {
+            "status": "error",
+            "message": f"File not found: {file_path}",
+            "error_type": "FileNotFoundError"
+        }
+
+    # Log the request parameters
+    print(f"Processing causal analysis with: treatment={treatment}, outcome={outcome}, file_path={file_path}")
+
+    # Construct input_data dictionary for ModelManager API
+    input_data = {
+        "file_path": file_path
+    }
+    
+    if treatment is not None:
+        input_data["treatment"] = treatment
+    
+    if outcome is not None:
+        input_data["outcome"] = outcome
+
+    try:
+        # Get ModelManager client and process request
+        model_client = get_mm_client(ctx, 'model')
+        causal_insights_obj = await asyncio.to_thread(model_client.get_causal_insights, input_data)
+        
+        # Handle successful response
+        if hasattr(causal_insights_obj, 'status_code') and causal_insights_obj.status_code >= 400:
+            # Handle API error responses
+            error_msg = getattr(causal_insights_obj, 'text', str(causal_insights_obj))
+            return {
+                "status": "error",
+                "message": f"API error: {error_msg}",
+                "error_type": "APIError",
+                "status_code": causal_insights_obj.status_code
+            }
+        
+        # Convert response to dict and add success message
+        response_data = safe_response_to_dict(causal_insights_obj)
+        response_data["status"] = "success"
+        response_data["message"] = "Successfully retrieved causal analysis insights"
+        return response_data
+        
+    except FileNotFoundError as e:
+        # Handle file not found errors specifically
+        return {
+            "status": "error",
+            "message": f"File access error: {str(e)}",
+            "error_type": "FileNotFoundError"
+        }
+    except ValueError as e:
+        # Handle value errors (often from parameter validation)
+        return {
+            "status": "error",
+            "message": f"Invalid parameter value: {str(e)}",
+            "error_type": "ValueError"
+        }
+    except Exception as e:
+        # Catch all other exceptions
+        return {
+            "status": "error",
+            "message": f"Failed to get causal analysis insights: {str(e)}",
+            "error_type": type(e).__name__
+        }
 
 async def main():
     await mcp.run_sse_async()
