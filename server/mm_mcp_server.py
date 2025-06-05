@@ -474,27 +474,22 @@ async def get_causal_inference_correlation(ctx: Context, model_id: str, graph_ty
         }
 
 @mcp.tool()
-async def get_causal_analysis_insights(ctx: Context, file_path: str, treatment: str = None, outcome: str = None) -> dict:
+async def get_drivers_analysis(ctx: Context, file_path: str, treatment: str = None, outcome: str = None) -> dict:
     """
-    Retrieve causal analysis insights for a given model using the ModelManager client.
+    Retrieve drivers (causal) analysis insights for a given dataset using the ModelManager client.
 
     Args:
-        ctx (Context): The MCP server context containing authentication and configuration.
-        file_path (str): Required. Path to the data file for analysis.
-        treatment (str, optional): The treatment variable name.
-        outcome (str, optional): The outcome variable name.
+        ctx (Context):
+            The MCP server context containing authentication and configuration.
+        file_path (str):
+            Path to the data file for analysis. Must exist and be accessible.
+        treatment (str, optional):
+            The treatment variable name to analyze. If not provided, analysis is performed without a specific treatment.
+        outcome (str, optional):
+            The outcome variable name to analyze. If not provided, analysis is performed without a specific outcome.
 
     Returns:
-        dict: Response with the following structure:
-            - On success: {"status": "success", "data": <insights_data>, "message": <success_message>}
-            - On validation error: {"status": "error", "message": <error_details>, "error_type": "ValidationError"}
-            - On other errors: {"status": "error", "message": <error_details>, "error_type": <exception_name>}
-
-    Error Handling:
-        - Validates required parameters before making the request
-        - Handles file existence errors separately
-        - Processes API errors from the ModelManager service
-        - Captures and categorizes all other exceptions
+        dict: A structured response indicating the result of the analysis request.
     """
     # Validate input parameters
     if not file_path:
@@ -513,7 +508,7 @@ async def get_causal_analysis_insights(ctx: Context, file_path: str, treatment: 
         }
 
     # Log the request parameters
-    print(f"Processing causal analysis with: treatment={treatment}, outcome={outcome}, file_path={file_path}")
+    print(f"Processing drivers analysis with: treatment={treatment}, outcome={outcome}, file_path={file_path}")
 
     # Construct input_data dictionary for ModelManager API
     input_data = {
@@ -529,23 +524,23 @@ async def get_causal_analysis_insights(ctx: Context, file_path: str, treatment: 
     try:
         # Get ModelManager client and process request
         model_client = get_mm_client(ctx, 'model')
-        causal_insights_obj = await asyncio.to_thread(model_client.get_causal_insights, input_data)
+        drivers_analysis_obj = await asyncio.to_thread(model_client.get_drivers_analysis, input_data)
         
         # Handle successful response
-        if hasattr(causal_insights_obj, 'status_code') and causal_insights_obj.status_code >= 400:
+        if hasattr(drivers_analysis_obj, 'status_code') and drivers_analysis_obj.status_code >= 400:
             # Handle API error responses
-            error_msg = getattr(causal_insights_obj, 'text', str(causal_insights_obj))
+            error_msg = getattr(drivers_analysis_obj, 'text', str(drivers_analysis_obj))
             return {
                 "status": "error",
                 "message": f"API error: {error_msg}",
                 "error_type": "APIError",
-                "status_code": causal_insights_obj.status_code
+                "status_code": drivers_analysis_obj.status_code
             }
         
         # Convert response to dict and add success message
-        response_data = safe_response_to_dict(causal_insights_obj)
+        response_data = safe_response_to_dict(drivers_analysis_obj)
         response_data["status"] = "success"
-        response_data["message"] = "Successfully retrieved causal analysis insights"
+        response_data["message"] = "Successfully retrieved drivers analysis"
         return response_data
         
     except FileNotFoundError as e:
@@ -566,7 +561,7 @@ async def get_causal_analysis_insights(ctx: Context, file_path: str, treatment: 
         # Catch all other exceptions
         return {
             "status": "error",
-            "message": f"Failed to get causal analysis insights: {str(e)}",
+            "message": f"Failed to get drivers analysis insights: {str(e)}",
             "error_type": type(e).__name__
         }
 

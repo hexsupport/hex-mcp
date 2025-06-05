@@ -181,7 +181,7 @@ dependencies = [
 requires-dist = [
     { name = "ipython", specifier = ">=8.12.0" },
     { name = "mcp", extras = ["cli"], specifier = ">=1.6.0" },
-    { name = "mmanager", specifier = "==2.3.8" },
+    { name = "mmanager", specifier = "==2.3.9" },
 ]
 
 [[package]]
@@ -364,7 +364,7 @@ wheels = [
 
 [[package]]
 name = "mmanager"
-version = "2.3.8"
+version = "2.3.9"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "colorama" },
@@ -372,9 +372,9 @@ dependencies = [
     { name = "ipython", version = "9.2.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "requests" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c0/15/821b7d6fe19a439c0b1f637fb09c920efc48f6528aa8ca9de62caea4429b/mmanager-2.3.8.tar.gz", hash = "sha256:d7003efacc58d3d830ce169c4da733e7419997992e8340b897aa5030af730b25", size = 91500258, upload_time = "2025-05-28T04:16:14.148Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/44/93/85d53ac3401356c1642c71a26a55a768c7eb222a5ed52ec3bc4e0d8f7807/mmanager-2.3.9.tar.gz", hash = "sha256:c2b263fe998251cf71cac4549d7be54f6bd4a257766985966b99dbca22144c9c", size = 91500302, upload_time = "2025-06-05T11:29:41.85Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/3f/3d/41795896f210ba6c4913f9c57f30c3047b727b968ed8b971736126b66a72/mmanager-2.3.8-py3-none-any.whl", hash = "sha256:6d63f195d0089909b8618509b1c258ce400d0755576e31ba9a1f835b2f722eb4", size = 91537298, upload_time = "2025-05-28T04:14:33.287Z" },
+    { url = "https://files.pythonhosted.org/packages/fb/60/fe9753020cefe7e25b457f9c8fbbc9fb8851765d556d4f78f84f0769b8d2/mmanager-2.3.9-py3-none-any.whl", hash = "sha256:2cfab82e4fd7e74299bf7ded96faa90bcaf0ce8b9a126239c44ba27c07cda4b0", size = 91537302, upload_time = "2025-06-05T11:28:01.404Z" },
 ]
 
 [[package]]

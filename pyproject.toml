@@ -6,6 +6,6 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "mcp[cli]>=1.6.0",
-    "mmanager==2.3.8",
+    "mmanager==2.3.9",
     "ipython>=8.12.0",
 ]
