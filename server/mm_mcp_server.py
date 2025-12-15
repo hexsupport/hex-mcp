@@ -1,17 +1,33 @@
-from mcp.server.fastmcp import FastMCP, Context
+"""HexagonML ModelManager MCP Server
+
+This module provides a FastMCP server implementation for interacting with the HexagonML ModelManager API,
+offering tools for model and usecase management, causal discovery, and metrics analysis.
+
+The server exposes tools for:
+- Creating, updating, and deleting ML models and usecases
+- Retrieving metrics and performance data
+- Generating causal discovery and inference graphs
+- Analyzing causal relationships in datasets
+
+Environment variables required:
+- SECRET_KEY: Authentication key for the ModelManager API
+- MM_API_BASE_URL: Base URL for the ModelManager API
+- OUTPUT_DIR: Directory to store generated graph files
+- HOST (optional): Host address for the MCP server (default: 0.0.0.0)
+- PORT (optional): Port for the MCP server (default: 9000)
+"""
+
+from fastmcp import FastMCP, Context
 from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from dotenv import load_dotenv
 import httpx
 import asyncio
-import os  
+import os
 from mmanager.mmanager import Model, Usecase
-from datetime import datetime
-from IPython.display import HTML
 
-import functools
-
+# Load environment variables from .env file
 load_dotenv()
 
 @dataclass
@@ -39,17 +55,52 @@ async def mm_lifespan(server: FastMCP) -> AsyncIterator[MMContext]:
     Yields:
         MMContext: A context object containing the API credentials and configuration.
     """
+    print("Initializing MCP Server lifespan...")
+    
+    # Get required environment variables
     secret_key = os.getenv("SECRET_KEY")
     api_base_url = os.getenv("MM_API_BASE_URL")
+    
+    # Validate credentials
+    if not secret_key:
+        print("ERROR: Missing SECRET_KEY environment variable")
+        raise ValueError("SECRET_KEY environment variable must be set")
+        
+    if not api_base_url:
+        print("ERROR: Missing MM_API_BASE_URL environment variable")
+        raise ValueError("MM_API_BASE_URL environment variable must be set")
+    
+    # Check if OUTPUT_DIR exists and is writable
+    output_dir = os.getenv("OUTPUT_DIR")
+    if output_dir:
+        try:
+            os.makedirs(output_dir, exist_ok=True)
+            print(f"Output directory confirmed: {output_dir}")
+        except Exception as e:
+            print(f"WARNING: Could not create output directory: {str(e)}")
+    else:
+        print("WARNING: OUTPUT_DIR not set, some features may not work properly")
+    
+    # Create context
+    print(f"Connecting to ModelManager API at {api_base_url}")
     ctx = MMContext(secret_key=secret_key, api_base_url=api_base_url)
+    
+    # Initialize server
+    print("MCP Server initialization complete! Ready to serve requests.")
+    
     try:
         yield ctx
+    except Exception as e:
+        print(f"ERROR during MCP server operation: {str(e)}")
+        raise
     finally:
-        pass  # Add cleanup if needed
+        print("Shutting down MCP Server...")
+        # Add cleanup if needed
 
+# Create FastMCP server instance
+# Note: Using only parameters supported by the current FastMCP version
 mcp = FastMCP(
     "hex-mm-mcp",
-    description="This is a HexagonML MCP server that provides a Model context protocol interface for HexagonML ModelManager tools.",
     lifespan=mm_lifespan,
     host=os.getenv("HOST", "0.0.0.0"),
     port=os.getenv("PORT", "9000")
@@ -92,41 +143,104 @@ def safe_response_to_dict(response) -> dict:
 
 # === MCP Tools ===
 
-@mcp.tool()
+@mcp.tool(
+    name="add_usecase",
+    description="Create a new usecase in the ModelManager service with optional forecasting configuration",
+    tags={"usecase", "create", "modelmanager"},
+    meta={"version": "1.0", "author": "HexagonML"}
+)
 async def add_usecase(ctx: Context, usecase_info: dict, forecasting_fields: dict = None, forecasting_feature_tabs: dict = None) -> dict:
     """
     Create a new usecase in the ModelManager service.
     Args:
         ctx: The MCP server context.
-        usecase_info: Dict of usecase metadata.
-        forecasting_fields: Optional dict for forecasting usecases.
-        forecasting_feature_tabs: Optional dict for forecasting usecases.
+        usecase_info: Dict of usecase metadata including name, description, and configuration.
+        forecasting_fields: Optional dict for forecasting usecases with field definitions.
+        forecasting_feature_tabs: Optional dict for forecasting usecases with feature tab configurations.
     Returns:
-        dict: Response from the ModelManager service.
+        dict: Response from the ModelManager service with the created usecase details.
     """
     forecasting_fields = forecasting_fields or {}
     forecasting_feature_tabs = forecasting_feature_tabs or {}
+    
+    # Validate input
+    if not usecase_info:
+        await ctx.error("Usecase information cannot be empty")
+        return {"status": "error", "message": "Usecase information is required", "error_type": "ValidationError"}
+    
+    # Check for required fields
+    required_fields = ['name']
+    missing_fields = [field for field in required_fields if field not in usecase_info]
+    if missing_fields:
+        await ctx.error(f"Missing required fields: {', '.join(missing_fields)}")
+        return {
+            "status": "error", 
+            "message": f"Missing required fields: {', '.join(missing_fields)}",
+            "error_type": "ValidationError"
+        }
+    
+    # Report progress
+    await ctx.info(f"Creating new usecase: {usecase_info.get('name', 'Unnamed')}")
+    await ctx.report_progress(progress=20, total=100)
+    
     try:
         usecase_client = get_mm_client(ctx, 'usecase')
-        response = await asyncio.to_thread(usecase_client.post_usecase, usecase_info, forecasting_fields, forecasting_feature_tabs)
-        return safe_response_to_dict(response)
+        await ctx.report_progress(progress=40, total=100)
+        
+        # Execute create operation
+        response = await asyncio.to_thread(
+            usecase_client.post_usecase, 
+            usecase_info, 
+            forecasting_fields, 
+            forecasting_feature_tabs
+        )
+        await ctx.report_progress(progress=80, total=100)
+        
+        # Process response
+        result = safe_response_to_dict(response)
+        
+        # Check for success indicator in response
+        if result.get('status') == 'error':
+            await ctx.error(f"Failed to create usecase: {result.get('message', 'Unknown error')}")
+        else:
+            usecase_id = result.get('id') or result.get('usecase_id')
+            if usecase_id:
+                await ctx.info(f"Usecase created successfully with ID: {usecase_id}")
+            else:
+                await ctx.info("Usecase created successfully")
+        
+        await ctx.report_progress(progress=100, total=100)
+        return result
+    except ValueError as e:
+        await ctx.error(f"Validation error: {str(e)}")
+        return {
+            "status": "error",
+            "message": f"Validation error: {str(e)}",
+            "error_type": "ValueError"
+        }
     except Exception as e:
+        await ctx.error(f"Failed to add usecase: {str(e)}")
         return {
             "status": "error",
             "message": f"Failed to add usecase: {str(e)}",
             "error_type": type(e).__name__
         }
 
-@mcp.tool()
+@mcp.tool(
+    name="update_usecase",
+    description="Update an existing usecase in the ModelManager service with new configuration",
+    tags={"usecase", "update", "modelmanager"},
+    meta={"version": "1.0", "author": "HexagonML"}
+)
 async def update_usecase(ctx: Context, usecase_id: str, usecase_data: dict) -> dict:
     """
     Update an existing usecase in the ModelManager service.
     Args:
         ctx: The MCP server context.
-        usecase_id: The ID of the usecase to update.
-        usecase_data: Dict of updated usecase metadata.
+        usecase_id: The unique identifier of the usecase to update.
+        usecase_data: Dict of updated usecase metadata including name, description, and configuration.
     Returns:
-        dict: Response from the ModelManager service.
+        dict: Response from the ModelManager service with the updated usecase details.
     """
     try:
         usecase_client = get_mm_client(ctx, 'usecase')
@@ -139,15 +253,20 @@ async def update_usecase(ctx: Context, usecase_id: str, usecase_data: dict) -> d
             "error_type": type(e).__name__
         }
 
-@mcp.tool()
+@mcp.tool(
+    name="delete_usecase",
+    description="Delete a usecase from the ModelManager service permanently",
+    tags={"usecase", "delete", "modelmanager"},
+    meta={"version": "1.0", "author": "HexagonML"}
+)
 async def delete_usecase(ctx: Context, usecase_id: str) -> dict:
     """
     Delete a usecase from the ModelManager service.
     Args:
         ctx: The MCP server context.
-        usecase_id: The ID of the usecase to delete.
+        usecase_id: The unique identifier of the usecase to delete.
     Returns:
-        dict: Response from the ModelManager service.
+        dict: Response from the ModelManager service with status information.
     """
     try:
         usecase_client = get_mm_client(ctx, 'usecase')
@@ -168,28 +287,81 @@ async def delete_usecase(ctx: Context, usecase_id: str) -> dict:
         }
 
 
-@mcp.tool()
+@mcp.tool(
+    name="add_model",
+    description="Upload a new machine learning model to the ModelManager service",
+    tags={"model", "create", "modelmanager"},
+    meta={"version": "1.0", "author": "HexagonML"}
+)
 async def add_model(ctx: Context, model_data: dict) -> dict:
     """
     Upload a machine learning model to the ModelManager service.
     Args:
         ctx: The MCP server context containing authentication and configuration.
-        model_data: Dict of model metadata/configuration.
+        model_data: Dict of model metadata/configuration including name, description, and model parameters.
     Returns:
-        dict: Response from the ModelManager service.
+        dict: Response from the ModelManager service containing the created model details.
     """
+    # Report progress to client
+    await ctx.info(f"Creating new model with name: {model_data.get('name', 'Unnamed')}")
+    await ctx.report_progress(progress=10, total=100)
+    
     try:
+        # Validate required fields
+        if not model_data:
+            await ctx.error("Model data is empty or null")
+            return {"status": "error", "message": "Model data cannot be empty"}
+            
+        required_fields = ['name', 'description']
+        missing_fields = [field for field in required_fields if field not in model_data]
+        
+        if missing_fields:
+            await ctx.error(f"Missing required fields: {', '.join(missing_fields)}")
+            return {
+                "status": "error",
+                "message": f"Missing required fields: {', '.join(missing_fields)}",
+                "error_type": "ValidationError"
+            }
+        
+        # Proceed with model creation
+        await ctx.report_progress(progress=30, total=100)
         model_client = get_mm_client(ctx, 'model')
+        
+        # Use asyncio.to_thread for non-blocking operation
         model_response = await asyncio.to_thread(model_client.post_model, model_data)
-        return safe_response_to_dict(model_response)
+        await ctx.report_progress(progress=90, total=100)
+        
+        # Process response
+        response_dict = safe_response_to_dict(model_response)
+        
+        if 'id' in response_dict:
+            await ctx.info(f"Model created successfully with ID: {response_dict['id']}")
+        else:
+            await ctx.info("Model created successfully")
+            
+        await ctx.report_progress(progress=100, total=100)
+        return response_dict
+    except ValueError as e:
+        await ctx.error(f"Validation error: {str(e)}")
+        return {
+            "status": "error",
+            "message": f"Validation error: {str(e)}",
+            "error_type": "ValueError"
+        }
     except Exception as e:
+        await ctx.error(f"Failed to upload model: {str(e)}")
         return {
             "status": "error",
             "message": f"Failed to upload model: {str(e)}",
             "error_type": type(e).__name__
         }
 
-@mcp.tool()
+@mcp.tool(
+    name="delete_model",
+    description="Delete a machine learning model from the ModelManager service permanently",
+    tags={"model", "delete", "modelmanager"},
+    meta={"version": "1.0", "author": "HexagonML"}
+)
 async def delete_model(ctx: Context, model_id: str) -> dict:
     """
     Delete a machine learning model from the ModelManager service.
@@ -197,30 +369,70 @@ async def delete_model(ctx: Context, model_id: str) -> dict:
         ctx: The MCP server context containing authentication and configuration.
         model_id: The unique identifier of the model to delete.
     Returns:
-        dict: Response from the ModelManager service.
+        dict: Response from the ModelManager service with status information.
     """
+    # Validate input
+    if not model_id:
+        await ctx.error("Model ID cannot be empty")
+        return {"status": "error", "message": "Model ID is required", "error_type": "ValidationError"}
+    
+    # Report progress
+    await ctx.info(f"Deleting model with ID: {model_id}")
+    await ctx.report_progress(progress=25, total=100)
+    
     try:
         model_client = get_mm_client(ctx, 'model')
+        await ctx.report_progress(progress=50, total=100)
+        
+        # Execute delete operation
         delete_response = await asyncio.to_thread(model_client.delete_model, model_id)
-        return safe_response_to_dict(delete_response)
+        await ctx.report_progress(progress=75, total=100)
+        
+        # Check response
+        if hasattr(delete_response, 'status_code') and delete_response.status_code == 204:
+            await ctx.info(f"Model {model_id} deleted successfully")
+            await ctx.report_progress(progress=100, total=100)
+            return {
+                "status": "success",
+                "message": f"Model {model_id} deleted successfully",
+                "code": 204
+            }
+            
+        # Process other responses
+        response_dict = safe_response_to_dict(delete_response)
+        await ctx.report_progress(progress=100, total=100)
+        return response_dict
+    except ValueError as e:
+        await ctx.error(f"Validation error: {str(e)}")
+        return {
+            "status": "error",
+            "message": f"Validation error: {str(e)}",
+            "error_type": "ValueError"
+        }
     except Exception as e:
+        await ctx.error(f"Failed to delete model: {str(e)}")
         return {
             "status": "error",
             "message": f"Failed to delete model: {str(e)}",
             "error_type": type(e).__name__
         }
 
-@mcp.tool()
+@mcp.tool(
+    name="update_model",
+    description="Update a machine learning model's metadata or configuration in the ModelManager service",
+    tags={"model", "update", "modelmanager"},
+    meta={"version": "1.0", "author": "HexagonML"}
+)
 async def update_model(ctx: Context, model_id: str, model_data: dict, create_sweetviz: bool = True) -> dict:
     """
     Update a machine learning model's metadata or configuration in the ModelManager service.
     Args:
         ctx: The MCP server context containing authentication and configuration.
         model_id: The unique identifier of the model to update.
-        model_data: Dict of updated model metadata/configuration.
-        create_sweetviz: Whether to generate a Sweetviz report (default: True).
+        model_data: Dict of updated model metadata/configuration including name, description, and parameters.
+        create_sweetviz: Whether to generate a Sweetviz report for data visualization (default: True).
     Returns:
-        dict: Response from the ModelManager service.
+        dict: Response from the ModelManager service with updated model details.
     """
     try:
         model_client = get_mm_client(ctx, 'model')
@@ -233,7 +445,12 @@ async def update_model(ctx: Context, model_id: str, model_data: dict, create_swe
             "error_type": type(e).__name__
         }
 
-@mcp.tool()
+@mcp.tool(
+    name="get_latest_metrics",
+    description="Retrieve the latest performance metrics for a model from the ModelManager service",
+    tags={"model", "metrics", "performance", "modelmanager"},
+    meta={"version": "1.0", "author": "HexagonML"}
+)
 async def get_latest_metrics(ctx: Context, model_id: str, metric_type: str) -> dict:
     """
     Retrieve the latest metrics for a model from the ModelManager service.
@@ -242,7 +459,7 @@ async def get_latest_metrics(ctx: Context, model_id: str, metric_type: str) -> d
         model_id: The unique identifier of the model.
         metric_type: The type of metric to retrieve (e.g., 'Scoring Metric', 'Development Metric').
     Returns:
-        dict: Response from the ModelManager service containing the latest metrics.
+        dict: Response from the ModelManager service containing the latest metrics and performance data.
     """
     try:
         model_client = get_mm_client(ctx, 'model')
@@ -255,12 +472,18 @@ async def get_latest_metrics(ctx: Context, model_id: str, metric_type: str) -> d
             "error_type": type(e).__name__
         }
 
-@mcp.tool()
+@mcp.tool(
+    name="get_usecase_data",
+    description="Retrieve and summarize all usecases from the ModelManager API",
+    tags={"usecase", "list", "summary", "modelmanager"},
+    meta={"version": "1.0", "author": "HexagonML"}
+)
 async def get_usecase_data(ctx: Context) -> dict:
     """
     Retrieve and summarize usecase data from the ModelManager API.
 
-    Fetches all registered usecases and returns a concise summary including usecase ID, name, description, insights, and metrics analyses for each usecase.
+    Fetches all registered usecases and returns a concise summary including usecase ID, name, description, 
+    insights, and metrics analyses for each usecase.
 
     Args:
         ctx (Context): The MCP server context containing authentication credentials and API configuration.
@@ -275,25 +498,50 @@ async def get_usecase_data(ctx: Context) -> dict:
     api_url = f"{ctx.request_context.lifespan_context.api_base_url}/api/mcp-usecase-detail/get_usecase_data/"
     secret_key = ctx.request_context.lifespan_context.secret_key
     headers = {"Authorization": f"secret-key {secret_key}", "Accept": "application/json"}
+    
+    # Report progress to client
+    await ctx.info("Fetching usecase data from ModelManager API...")
+    await ctx.report_progress(progress=10, total=100)
+    
     try:
-        async with httpx.AsyncClient() as client:
+        # Use httpx with timeout and follow_redirects for better reliability
+        async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
             response = await client.get(api_url, headers=headers)
             response.raise_for_status()
+            await ctx.report_progress(progress=50, total=100)
+            
             data = response.json()
+            await ctx.report_progress(progress=90, total=100)
+            await ctx.info(f"Successfully retrieved {len(data) if isinstance(data, list) else 'all'} usecases")
     except httpx.HTTPStatusError as e:
+        await ctx.error(f"HTTP error: {str(e)}")
         return {
             'status': 'error',
             'message': f"HTTP error: {str(e)}",
-            'error_type': type(e).__name__
+            'error_type': type(e).__name__,
+            'status_code': e.response.status_code if hasattr(e, 'response') else None
+        }
+    except httpx.TimeoutException:
+        await ctx.error("Request timed out when fetching usecase data")
+        return {
+            'status': 'error',
+            'message': "Request timed out",
+            'error_type': 'TimeoutException'
         }
     except Exception as e:
+        await ctx.error(f"Failed to fetch usecase data: {str(e)}")
         return {
             'status': 'error',
             'message': f"Failed to fetch usecase data: {str(e)}",
             'error_type': type(e).__name__
         }
-    # Return the whole results for all usecases
-    return str(data)
+        
+    # Report complete and return results
+    await ctx.report_progress(progress=100, total=100)
+    return {
+        'status': 'success',
+        'summary': data
+    }
 
 CAUSAL_DISCOVERY_GRAPH_TYPE_OPTIONS = [
     "HeatMap",
@@ -333,10 +581,15 @@ def save_html_to_file(html_content: str, prefix: str, model_id: str, graph_type:
         f.write(html_content)
     return file_path
 
-@mcp.tool()
+@mcp.tool(
+    name="get_causal_discovery_graphs",
+    description="Retrieve causal discovery visualization graphs for a model and save as HTML",
+    tags={"model", "causal", "discovery", "visualization", "modelmanager"},
+    meta={"version": "1.0", "author": "HexagonML"}
+)
 async def get_causal_discovery_graphs(ctx: Context, model_id: str, graph_type: str) -> dict:
     """
-    Retrieve causal discovery graphs for a given model and save the HTML content to a file.
+    Retrieve causal discovery graphs for a given model and save the HTML visualization content to a file.
 
     Args:
         ctx: The MCP server context.
@@ -365,7 +618,12 @@ async def get_causal_discovery_graphs(ctx: Context, model_id: str, graph_type: s
             "error_type": type(e).__name__
         }
 
-@mcp.tool()
+@mcp.tool(
+    name="get_causal_discovery_metrics",
+    description="Retrieve causal discovery metrics and KPIs for a given model",
+    tags={"model", "causal", "discovery", "metrics", "modelmanager"},
+    meta={"version": "1.0", "author": "HexagonML"}
+)
 async def get_causal_discovery_metrics(ctx: Context, model_id: str) -> dict:
     """
     Retrieve causal discovery metrics for a given model.
@@ -400,7 +658,7 @@ CAUSAL_INFERENCE_GRAPH_TYPE_OPTIONS = [
     "top_effect_p_values",
     "top_effect_rsquared"
 ]
-@mcp.tool()
+@mcp.tool
 async def get_causal_inference_graphs(ctx: Context, model_id: str, graph_type: str, treatment: str = None, outcome: str = None) -> dict:
     """
     Retrieve causal inference graphs for a given model.
@@ -439,7 +697,7 @@ CAUSAL_INFERENCE_CORRELATION_GRAPH_TYPE_OPTIONS = [
     "correlation_graph",
     "causal_correlation_summary"
 ]
-@mcp.tool()
+@mcp.tool
 async def get_causal_inference_correlation(ctx: Context, model_id: str, graph_type: str, treatment: str, outcome: str) -> dict:
     """
     Retrieve causal inference correlation for a given model.
@@ -473,7 +731,7 @@ async def get_causal_inference_correlation(ctx: Context, model_id: str, graph_ty
             "error_type": type(e).__name__
         }
 
-@mcp.tool()
+@mcp.tool
 async def get_drivers_analysis(ctx: Context, file_path: str, treatment: str = None, outcome: str = None) -> dict:
     """
     Retrieve drivers (causal) analysis insights for a given dataset using the ModelManager client.
@@ -566,7 +824,58 @@ async def get_drivers_analysis(ctx: Context, file_path: str, treatment: str = No
         }
 
 async def main():
-    await mcp.run_sse_async()
+    """Main entry point for the MCP server.
+    
+    Validates required environment variables and runs the MCP server.
+    Handles graceful shutdown on keyboard interrupt.
+    """
+    print("-" * 60)
+    print("ModelManager MCP Server Startup")
+    print("-" * 60)
+    
+    # Print environment variable status (without revealing sensitive values)
+    print("Environment configuration:")
+    env_vars = {
+        "SECRET_KEY": "*****" if os.getenv("SECRET_KEY") else "NOT SET",
+        "MM_API_BASE_URL": os.getenv("MM_API_BASE_URL") or "NOT SET",
+        "OUTPUT_DIR": os.getenv("OUTPUT_DIR") or "NOT SET",
+        "HOST": os.getenv("HOST", "0.0.0.0"),
+        "PORT": os.getenv("PORT", "9000")
+    }
+    for key, value in env_vars.items():
+        status = "✓" if value != "NOT SET" else "✗"
+        print(f"  {status} {key}: {value}")
+    
+    # Validate required environment variables
+    required_env_vars = ['SECRET_KEY', 'MM_API_BASE_URL', 'OUTPUT_DIR']
+    missing_vars = [var for var in required_env_vars if not os.getenv(var)]
+    
+    if missing_vars:
+        print(f"\nERROR: Missing required environment variables: {', '.join(missing_vars)}")
+        print("Please set these variables in your .env file or environment.")
+        sys.exit(1)
+        
+    try:
+        print(f"\nStarting ModelManager MCP server on {env_vars['HOST']}:{env_vars['PORT']}")
+        print("Initializing server components...")
+        print("Press Ctrl+C to stop the server\n")
+        
+        # Run with a timeout to catch initialization issues
+        try:
+            await asyncio.wait_for(mcp.run_sse_async(), timeout=60.0)
+        except asyncio.TimeoutError:
+            print("\nERROR: Server initialization is taking too long. Check your connection to the ModelManager API.")
+            print("Try verifying API credentials and connectivity.")
+            sys.exit(1)
+            
+    except KeyboardInterrupt:
+        print("\nServer shutdown requested...")
+    except Exception as e:
+        print(f"\nERROR: Server failed with exception: {str(e)}")
+        raise
+    finally:
+        print("\nServer shutdown complete.")
+        print("-" * 60)
 
 if __name__ == "__main__":
     asyncio.run(main())
