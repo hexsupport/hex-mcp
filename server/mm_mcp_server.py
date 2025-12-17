@@ -25,6 +25,7 @@ from dotenv import load_dotenv
 import httpx
 import asyncio
 import os
+import sys
 from mmanager.mmanager import Model, Usecase
 
 # Load environment variables from .env file
@@ -140,6 +141,84 @@ def safe_response_to_dict(response) -> dict:
             return {"status": "success", "message": str(response)}
     except Exception as e:
         return {"status": "error", "message": f"Failed to parse response: {str(e)}", "error_type": type(e).__name__}
+
+def infer_forecasting_condition_count(usecase_detail: dict) -> int | None:
+    """Infer the number of forecasting conditions required for a forecasting usecase.
+
+    Returns:
+        int | None: 1, 2, 3 if it can be inferred, otherwise None.
+    """
+    if not isinstance(usecase_detail, dict):
+        return None
+
+    template_to_count = {"one_condition": 1, "two_conditions": 2, "three_conditions": 3}
+
+    def _get_nested(d: dict, *path: str):
+        cur = d
+        for p in path:
+            if not isinstance(cur, dict):
+                return None
+            cur = cur.get(p)
+        return cur
+
+    for t in (
+        usecase_detail.get("forecasting_template"),
+        _get_nested(usecase_detail, "project", "forecasting_template"),
+        _get_nested(usecase_detail, "config", "forecasting_template"),
+        _get_nested(usecase_detail, "forecasting_config", "forecasting_template"),
+        _get_nested(usecase_detail, "forecasting_fields", "forecasting_template"),
+    ):
+        if isinstance(t, str):
+            key = t.strip().lower().replace(" ", "_")
+            if key in template_to_count:
+                return template_to_count[key]
+
+    candidates = [
+        usecase_detail.get("forecasting_fields"),
+        usecase_detail.get("forecasting_field"),
+        usecase_detail.get("forecasting_config"),
+        usecase_detail.get("config"),
+    ]
+    for c in candidates:
+        if isinstance(c, dict):
+            # Most direct / explicit
+            for key in ("conditions", "condition_fields", "condition_columns", "conditions_count"):
+                v = c.get(key)
+                if isinstance(v, int):
+                    return max(1, min(3, v))
+                if isinstance(v, (list, tuple)):
+                    if len(v) in (1, 2, 3):
+                        return len(v)
+            # Heuristic based on presence of condition metadata
+            has_c2 = any(k in c for k in ("condition_2", "condition2", "second_condition", "condition_2_name", "condition_2_label"))
+            has_c3 = any(k in c for k in ("condition_3", "condition3", "third_condition", "condition_3_name", "condition_3_label"))
+            if has_c3:
+                return 3
+            if has_c2:
+                return 2
+
+    # Fallback heuristic on root keys
+    has_c2 = any(k in usecase_detail for k in ("condition_2", "condition2", "second_condition", "condition_2_name", "condition_2_label"))
+    has_c3 = any(k in usecase_detail for k in ("condition_3", "condition3", "third_condition", "condition_3_name", "condition_3_label"))
+    if has_c3:
+        return 3
+    if has_c2:
+        return 2
+    return None
+
+
+async def fetch_usecase_detail(ctx: Context, usecase_id: str) -> dict:
+    """Fetch usecase detail using the ModelManager Usecase client."""
+    try:
+        usecase_client = get_mm_client(ctx, 'usecase')
+        resp = await asyncio.to_thread(usecase_client.get_detail, usecase_id)
+        return safe_response_to_dict(resp)
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Failed to get usecase detail: {str(e)}",
+            "error_type": type(e).__name__,
+        }
 
 # === MCP Tools ===
 
@@ -542,6 +621,114 @@ async def get_usecase_data(ctx: Context) -> dict:
         'status': 'success',
         'summary': data
     }
+
+@mcp.tool(
+    name="get_modelcard_summary",
+    description="Retrieve the model card summary for a given model from the ModelManager service",
+    tags={"model", "modelcard", "summary", "modelmanager"},
+    meta={"version": "1.0", "author": "HexagonML"}
+)
+async def get_modelcard_summary(ctx: Context, usecase_id: str, model_id:str = None, series: str = None, condition_1: str = None, condition_2: str = None, condition_3: str = None) -> dict:
+    """
+    Retrieve the model card summary for a model.
+
+    Args:
+        ctx: The MCP server context containing authentication and configuration.
+        usecase_id: The unique identifier of the usecase.
+        model_id: The unique identifier of the model, If the usecase is not Forecasting Usecase, this parameter is required (optional).
+        series: The series identifier, Series (optional), If the usecase is Forecasting, this parameter is required.
+        condition_1: The first condition, Region (optional), If the usecase is Forecasting, this parameter is required.
+        condition_2: The second condition, Facility (optional), If the usecase is Forecasting and Two Conditions or Three Conditions, this parameter is required.
+        condition_3: The third condition, Unit (optional), If the usecase is Forecasting and Three Conditions, this parameter is required.
+
+    Returns:
+        dict: Parsed JSON/dict response containing the model card summary, or an error dict.
+    """
+    if not usecase_id:
+        await ctx.error("Usecase ID cannot be empty")
+        return {"status": "error", "message": "usecase_id is required", "error_type": "ValidationError"}
+
+    api_url = f"{ctx.request_context.lifespan_context.api_base_url}/api/mcp-usecase-detail/get_modelcard_data/"
+    secret_key = ctx.request_context.lifespan_context.secret_key
+    headers = {"Authorization": f"secret-key {secret_key}", "Accept": "application/json"}
+
+    await ctx.info("Fetching usecase details...")
+    await ctx.report_progress(progress=10, total=100)
+    usecase_detail = await fetch_usecase_detail(ctx, usecase_id)
+
+    if isinstance(usecase_detail, dict) and usecase_detail.get("status") == "error":
+        await ctx.error(usecase_detail.get("message", "Failed to get usecase detail"))
+        return usecase_detail
+
+    usecase_type = None
+    if isinstance(usecase_detail, dict):
+        usecase_type = usecase_detail.get("usecase_type") or usecase_detail.get("type")
+    is_forecasting = isinstance(usecase_type, str) and usecase_type.strip().lower() == "forecasting"
+
+    if is_forecasting:
+        required_conditions = infer_forecasting_condition_count(usecase_detail)
+
+        if not series:
+            await ctx.error("series is required for forecasting usecases")
+            return {"status": "error", "message": "series is required for forecasting usecases", "error_type": "ValidationError"}
+        if not condition_1:
+            await ctx.error("condition_1 is required for forecasting usecases")
+            return {"status": "error", "message": "condition_1 is required for forecasting usecases", "error_type": "ValidationError"}
+        if required_conditions in (2, 3) and not condition_2:
+            await ctx.error("condition_2 is required for this forecasting usecase")
+            return {"status": "error", "message": "condition_2 is required for this forecasting usecase", "error_type": "ValidationError"}
+        if required_conditions == 3 and not condition_3:
+            await ctx.error("condition_3 is required for this forecasting usecase")
+            return {"status": "error", "message": "condition_3 is required for this forecasting usecase", "error_type": "ValidationError"}
+    else:
+        if not model_id:
+            await ctx.error("model_id is required for non-forecasting usecases")
+            return {"status": "error", "message": "model_id is required for non-forecasting usecases", "error_type": "ValidationError"}
+
+    params: dict = {"usecase_id": usecase_id}
+    if is_forecasting:
+        params.update({
+            "series": series,
+            "condition_1": condition_1,
+        })
+        if condition_2:
+            params["condition_2"] = condition_2
+        if condition_3:
+            params["condition_3"] = condition_3
+    else:
+        params["model_id"] = model_id
+
+    await ctx.info("Fetching model card summary from ModelManager API...")
+    await ctx.report_progress(progress=40, total=100)
+
+    try:
+        async with httpx.AsyncClient(timeout=60.0, follow_redirects=True) as client:
+            response = await client.get(api_url, headers=headers, params=params)
+            response.raise_for_status()
+            await ctx.report_progress(progress=90, total=100)
+            return {"status": "success", "summary": response.json()}
+    except httpx.HTTPStatusError as e:
+        await ctx.error(f"HTTP error: {str(e)}")
+        return {
+            "status": "error",
+            "message": f"HTTP error: {str(e)}",
+            "error_type": type(e).__name__,
+            "status_code": e.response.status_code if hasattr(e, 'response') else None,
+        }
+    except httpx.TimeoutException:
+        await ctx.error("Request timed out when fetching modelcard summary")
+        return {
+            "status": "error",
+            "message": "Request timed out",
+            "error_type": "TimeoutException",
+        }
+    except Exception as e:
+        await ctx.error(f"Failed to get modelcard summary: {str(e)}")
+        return {
+            "status": "error",
+            "message": f"Failed to get modelcard summary: {str(e)}",
+            "error_type": type(e).__name__,
+        }
 
 CAUSAL_DISCOVERY_GRAPH_TYPE_OPTIONS = [
     "HeatMap",
