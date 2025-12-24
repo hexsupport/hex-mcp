@@ -26,7 +26,8 @@ import httpx
 import asyncio
 import os
 import sys
-from mmanager.mmanager import Model, Usecase
+from urllib.parse import urlparse
+from mmanager.mmanager import Model, Usecase, ModelCard
 
 # Load environment variables from .env file
 load_dotenv()
@@ -58,18 +59,37 @@ async def mm_lifespan(server: FastMCP) -> AsyncIterator[MMContext]:
     """
     print("Initializing MCP Server lifespan...")
     
+    def sanitize_api_base_url(raw: str) -> str:
+        """Return a normalized API base URL.
+ 
+        This prevents common .env pitfalls like wrapping the URL in quotes.
+        """
+        value = (raw or "").strip()
+        if (value.startswith("\"") and value.endswith("\"")) or (value.startswith("'") and value.endswith("'")):
+            value = value[1:-1].strip()
+        value = value.rstrip("/")
+ 
+        parsed = urlparse(value)
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            raise ValueError(
+                "MM_API_BASE_URL must be a valid http(s) URL, e.g. http://localhost:8000 (do not wrap it in quotes)"
+            )
+        return value
+
     # Get required environment variables
     secret_key = os.getenv("SECRET_KEY")
-    api_base_url = os.getenv("MM_API_BASE_URL")
+    api_base_url_raw = os.getenv("MM_API_BASE_URL")
     
     # Validate credentials
     if not secret_key:
         print("ERROR: Missing SECRET_KEY environment variable")
         raise ValueError("SECRET_KEY environment variable must be set")
         
-    if not api_base_url:
+    if not api_base_url_raw:
         print("ERROR: Missing MM_API_BASE_URL environment variable")
         raise ValueError("MM_API_BASE_URL environment variable must be set")
+
+    api_base_url = sanitize_api_base_url(api_base_url_raw)
     
     # Check if OUTPUT_DIR exists and is writable
     output_dir = os.getenv("OUTPUT_DIR")
@@ -121,12 +141,20 @@ def get_usecase_client(ctx: Context) -> Usecase:
     base_url = ctx.request_context.lifespan_context.api_base_url
     return Usecase(secret_key, base_url)
 
+def get_modelcard_client(ctx: Context) -> ModelCard:
+    """Return a ModelManager ModelCard client using credentials from context."""
+    secret_key = ctx.request_context.lifespan_context.secret_key
+    base_url = ctx.request_context.lifespan_context.api_base_url
+    return ModelCard(secret_key, base_url)
+
 def get_mm_client(ctx: Context, client_type: str):
     """Return the correct ModelManager client (Model or Usecase) based on client_type."""
     if client_type == 'model':
         return get_model_client(ctx)
     elif client_type == 'usecase':
         return get_usecase_client(ctx)
+    elif client_type == 'modelcard':
+        return get_modelcard_client(ctx)
     else:
         raise ValueError(f"Unknown client_type: {client_type}")
 
@@ -622,114 +650,6 @@ async def get_usecase_data(ctx: Context) -> dict:
         'summary': data
     }
 
-@mcp.tool(
-    name="get_modelcard_summary",
-    description="Retrieve the model card summary for a given model from the ModelManager service",
-    tags={"model", "modelcard", "summary", "modelmanager"},
-    meta={"version": "1.0", "author": "HexagonML"}
-)
-async def get_modelcard_summary(ctx: Context, usecase_id: str, model_id:str = None, series: str = None, condition_1: str = None, condition_2: str = None, condition_3: str = None) -> dict:
-    """
-    Retrieve the model card summary for a model.
-
-    Args:
-        ctx: The MCP server context containing authentication and configuration.
-        usecase_id: The unique identifier of the usecase.
-        model_id: The unique identifier of the model, If the usecase is not Forecasting Usecase, this parameter is required (optional).
-        series: The series identifier, Series (optional), If the usecase is Forecasting, this parameter is required.
-        condition_1: The first condition, Region (optional), If the usecase is Forecasting, this parameter is required.
-        condition_2: The second condition, Facility (optional), If the usecase is Forecasting and Two Conditions or Three Conditions, this parameter is required.
-        condition_3: The third condition, Unit (optional), If the usecase is Forecasting and Three Conditions, this parameter is required.
-
-    Returns:
-        dict: Parsed JSON/dict response containing the model card summary, or an error dict.
-    """
-    if not usecase_id:
-        await ctx.error("Usecase ID cannot be empty")
-        return {"status": "error", "message": "usecase_id is required", "error_type": "ValidationError"}
-
-    api_url = f"{ctx.request_context.lifespan_context.api_base_url}/api/mcp-usecase-detail/get_modelcard_data/"
-    secret_key = ctx.request_context.lifespan_context.secret_key
-    headers = {"Authorization": f"secret-key {secret_key}", "Accept": "application/json"}
-
-    await ctx.info("Fetching usecase details...")
-    await ctx.report_progress(progress=10, total=100)
-    usecase_detail = await fetch_usecase_detail(ctx, usecase_id)
-
-    if isinstance(usecase_detail, dict) and usecase_detail.get("status") == "error":
-        await ctx.error(usecase_detail.get("message", "Failed to get usecase detail"))
-        return usecase_detail
-
-    usecase_type = None
-    if isinstance(usecase_detail, dict):
-        usecase_type = usecase_detail.get("usecase_type") or usecase_detail.get("type")
-    is_forecasting = isinstance(usecase_type, str) and usecase_type.strip().lower() == "forecasting"
-
-    if is_forecasting:
-        required_conditions = infer_forecasting_condition_count(usecase_detail)
-
-        if not series:
-            await ctx.error("series is required for forecasting usecases")
-            return {"status": "error", "message": "series is required for forecasting usecases", "error_type": "ValidationError"}
-        if not condition_1:
-            await ctx.error("condition_1 is required for forecasting usecases")
-            return {"status": "error", "message": "condition_1 is required for forecasting usecases", "error_type": "ValidationError"}
-        if required_conditions in (2, 3) and not condition_2:
-            await ctx.error("condition_2 is required for this forecasting usecase")
-            return {"status": "error", "message": "condition_2 is required for this forecasting usecase", "error_type": "ValidationError"}
-        if required_conditions == 3 and not condition_3:
-            await ctx.error("condition_3 is required for this forecasting usecase")
-            return {"status": "error", "message": "condition_3 is required for this forecasting usecase", "error_type": "ValidationError"}
-    else:
-        if not model_id:
-            await ctx.error("model_id is required for non-forecasting usecases")
-            return {"status": "error", "message": "model_id is required for non-forecasting usecases", "error_type": "ValidationError"}
-
-    params: dict = {"usecase_id": usecase_id}
-    if is_forecasting:
-        params.update({
-            "series": series,
-            "condition_1": condition_1,
-        })
-        if condition_2:
-            params["condition_2"] = condition_2
-        if condition_3:
-            params["condition_3"] = condition_3
-    else:
-        params["model_id"] = model_id
-
-    await ctx.info("Fetching model card summary from ModelManager API...")
-    await ctx.report_progress(progress=40, total=100)
-
-    try:
-        async with httpx.AsyncClient(timeout=60.0, follow_redirects=True) as client:
-            response = await client.get(api_url, headers=headers, params=params)
-            response.raise_for_status()
-            await ctx.report_progress(progress=90, total=100)
-            return {"status": "success", "summary": response.json()}
-    except httpx.HTTPStatusError as e:
-        await ctx.error(f"HTTP error: {str(e)}")
-        return {
-            "status": "error",
-            "message": f"HTTP error: {str(e)}",
-            "error_type": type(e).__name__,
-            "status_code": e.response.status_code if hasattr(e, 'response') else None,
-        }
-    except httpx.TimeoutException:
-        await ctx.error("Request timed out when fetching modelcard summary")
-        return {
-            "status": "error",
-            "message": "Request timed out",
-            "error_type": "TimeoutException",
-        }
-    except Exception as e:
-        await ctx.error(f"Failed to get modelcard summary: {str(e)}")
-        return {
-            "status": "error",
-            "message": f"Failed to get modelcard summary: {str(e)}",
-            "error_type": type(e).__name__,
-        }
-
 CAUSAL_DISCOVERY_GRAPH_TYPE_OPTIONS = [
     "HeatMap",
     "2D_CausalDiscovery_Comparision",
@@ -1009,6 +929,139 @@ async def get_drivers_analysis(ctx: Context, file_path: str, treatment: str = No
             "message": f"Failed to get drivers analysis insights: {str(e)}",
             "error_type": type(e).__name__
         }
+
+@mcp.tool(name="get_modelcard_data",
+    description="Retrieve modelcard for a given model",
+    tags={"modelcard", "modelmanager"},
+    meta={"version": "1.0", "author": "HexagonML"})
+async def get_modelcard_data(ctx: Context, data: dict) -> dict:
+    if not isinstance(data, dict) or not data:
+        return {
+            "status": "error",
+            "message": "Missing or invalid required parameter: data (must be a non-empty dict)",
+            "error_type": "ValidationError",
+        }
+
+    try:
+        modelcard_client = get_mm_client(ctx, 'modelcard')
+        modelcard_resp = await asyncio.to_thread(modelcard_client.get_modelcard_data, data)
+
+        if hasattr(modelcard_resp, 'status_code') and modelcard_resp.status_code >= 400:
+            error_msg = getattr(modelcard_resp, 'text', str(modelcard_resp))
+            return {
+                "status": "error",
+                "message": f"API error: {error_msg}",
+                "error_type": "APIError",
+                "status_code": modelcard_resp.status_code,
+            }
+
+        response_data = safe_response_to_dict(modelcard_resp)
+        response_data["status"] = "success"
+        response_data["message"] = "Successfully retrieved modelcard data"
+        return response_data
+    except ValueError as e:
+        return {
+            "status": "error",
+            "message": f"Invalid parameter value: {str(e)}",
+            "error_type": "ValueError",
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Failed to get modelcard data: {str(e)}",
+            "error_type": type(e).__name__,
+        }
+
+
+@mcp.tool(
+    name="create_modelcard",
+    description="Create a modelcard",
+    tags={"modelcard", "modelmanager", "create"},
+    meta={"version": "1.0", "author": "HexagonML"},
+)
+async def create_modelcard(ctx: Context, data: dict) -> dict:
+    if not isinstance(data, dict) or not data:
+        return {
+            "status": "error",
+            "message": "Missing or invalid required parameter: data (must be a non-empty dict)",
+            "error_type": "ValidationError",
+        }
+
+    try:
+        modelcard_client = get_mm_client(ctx, 'modelcard')
+        resp = await asyncio.to_thread(modelcard_client.create_modelcard, data)
+
+        if hasattr(resp, 'status_code') and resp.status_code >= 400:
+            error_msg = getattr(resp, 'text', str(resp))
+            return {
+                "status": "error",
+                "message": f"API error: {error_msg}",
+                "error_type": "APIError",
+                "status_code": resp.status_code,
+            }
+
+        response_data = safe_response_to_dict(resp)
+        response_data["status"] = "success"
+        response_data["message"] = "Successfully created modelcard"
+        return response_data
+    except ValueError as e:
+        return {
+            "status": "error",
+            "message": f"Invalid parameter value: {str(e)}",
+            "error_type": "ValueError",
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Failed to create modelcard: {str(e)}",
+            "error_type": type(e).__name__,
+        }
+
+
+@mcp.tool(
+    name="create_modelcard_bulk",
+    description="Create modelcards in bulk for a usecase",
+    tags={"modelcard", "modelmanager", "create"},
+    meta={"version": "1.0", "author": "HexagonML"},
+)
+async def create_modelcard_bulk(ctx: Context, usecase_id: str) -> dict:
+    if not usecase_id or not isinstance(usecase_id, str):
+        return {
+            "status": "error",
+            "message": "Missing or invalid required parameter: usecase_id",
+            "error_type": "ValidationError",
+        }
+
+    try:
+        modelcard_client = get_mm_client(ctx, 'modelcard')
+        resp = await asyncio.to_thread(modelcard_client.create_modelcard_bulk, usecase_id)
+
+        if hasattr(resp, 'status_code') and resp.status_code >= 400:
+            error_msg = getattr(resp, 'text', str(resp))
+            return {
+                "status": "error",
+                "message": f"API error: {error_msg}",
+                "error_type": "APIError",
+                "status_code": resp.status_code,
+            }
+
+        response_data = safe_response_to_dict(resp)
+        response_data["status"] = "success"
+        response_data["message"] = "Successfully created modelcards in bulk"
+        return response_data
+    except ValueError as e:
+        return {
+            "status": "error",
+            "message": f"Invalid parameter value: {str(e)}",
+            "error_type": "ValueError",
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Failed to create modelcards in bulk: {str(e)}",
+            "error_type": type(e).__name__,
+        }
+
 
 async def main():
     """Main entry point for the MCP server.
