@@ -5,7 +5,10 @@ description = "This is a HexagonML MCP server that provides a Model context prot
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "mmanager==2.3.9",
+    "mmanager==2.4.0",
     "ipython>=8.12.0",
     "fastmcp>=2.13.1",
+    "requests>=2.31.0",
+    "python-dotenv>=1.0.0",
+    "loguru>=0.7.2",
 ]
