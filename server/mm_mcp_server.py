@@ -27,7 +27,7 @@ import asyncio
 import os
 import sys
 from urllib.parse import urlparse
-from mmanager.mmanager import Model, Usecase, ModelCard
+from mmanager.mmanager import Model, Usecase, ModelCard, ModelInsights
 
 # Load environment variables from .env file
 load_dotenv()
@@ -147,6 +147,12 @@ def get_modelcard_client(ctx: Context) -> ModelCard:
     base_url = ctx.request_context.lifespan_context.api_base_url
     return ModelCard(secret_key, base_url)
 
+def get_modelinsights_client(ctx: Context) -> ModelInsights:
+    """Return a ModelManager ModelInsights client using credentials from context."""
+    secret_key = ctx.request_context.lifespan_context.secret_key
+    base_url = ctx.request_context.lifespan_context.api_base_url
+    return ModelInsights(secret_key, base_url)
+
 def get_mm_client(ctx: Context, client_type: str):
     """Return the correct ModelManager client (Model or Usecase) based on client_type."""
     if client_type == 'model':
@@ -155,6 +161,8 @@ def get_mm_client(ctx: Context, client_type: str):
         return get_usecase_client(ctx)
     elif client_type == 'modelcard':
         return get_modelcard_client(ctx)
+    elif client_type == 'modelinsights':
+        return get_modelinsights_client(ctx)
     else:
         raise ValueError(f"Unknown client_type: {client_type}")
 
@@ -1059,6 +1067,96 @@ async def create_modelcard_bulk(ctx: Context, usecase_id: str) -> dict:
         return {
             "status": "error",
             "message": f"Failed to create modelcards in bulk: {str(e)}",
+            "error_type": type(e).__name__,
+        }
+
+
+@mcp.tool(
+    name="create-insight",
+    description="Create a model insight",
+    tags={"modelinsights", "modelmanager", "create"},
+    meta={"version": "1.0", "author": "HexagonML"},
+)
+async def create_insight(ctx: Context, data: dict) -> dict:
+    if not isinstance(data, dict) or not data:
+        return {
+            "status": "error",
+            "message": "Missing or invalid required parameter: data (must be a non-empty dict)",
+            "error_type": "ValidationError",
+        }
+
+    try:
+        modelinsights_client = get_mm_client(ctx, 'modelinsights')
+        resp = await asyncio.to_thread(modelinsights_client.create_insight, data)
+
+        if hasattr(resp, 'status_code') and resp.status_code >= 400:
+            error_msg = getattr(resp, 'text', str(resp))
+            return {
+                "status": "error",
+                "message": f"API error: {error_msg}",
+                "error_type": "APIError",
+                "status_code": resp.status_code,
+            }
+
+        response_data = safe_response_to_dict(resp)
+        response_data["status"] = "success"
+        response_data["message"] = "Successfully created model insight"
+        return response_data
+    except ValueError as e:
+        return {
+            "status": "error",
+            "message": f"Invalid parameter value: {str(e)}",
+            "error_type": "ValueError",
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Failed to create model insight: {str(e)}",
+            "error_type": type(e).__name__,
+        }
+
+
+@mcp.tool(
+    name="get-insight",
+    description="Retrieve model insights for a usecase",
+    tags={"modelinsights", "modelmanager", "get"},
+    meta={"version": "1.0", "author": "HexagonML"},
+)
+async def get_insight(ctx: Context, usecase_id: str) -> dict:
+    if not usecase_id or not isinstance(usecase_id, str):
+        return {
+            "status": "error",
+            "message": "Missing or invalid required parameter: usecase_id",
+            "error_type": "ValidationError",
+        }
+
+    try:
+        modelinsights_client = get_mm_client(ctx, 'modelinsights')
+        resp = await asyncio.to_thread(modelinsights_client.get_insights, usecase_id)
+
+        if hasattr(resp, 'status_code') and resp.status_code >= 400:
+            error_msg = getattr(resp, 'text', str(resp))
+            return {
+                "status": "error",
+                "message": f"API error: {error_msg}",
+                "error_type": "APIError",
+                "status_code": resp.status_code,
+            }
+
+        response_data = safe_response_to_dict(resp)
+        response_data["status"] = "success"
+        response_data["message"] = "Successfully retrieved model insights"
+        return response_data
+    except ValueError as e:
+        return {
+            "status": "error",
+            "message": f"Invalid parameter value: {str(e)}",
+            "error_type": "ValueError",
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Failed to get model insights: {str(e)}",
             "error_type": type(e).__name__,
         }
 
