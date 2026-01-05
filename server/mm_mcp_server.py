@@ -1071,8 +1071,9 @@ async def create_modelcard_bulk(ctx: Context, usecase_id: str) -> dict:
         }
 
 
+
 @mcp.tool(
-    name="create-insight",
+    name="create_insight",
     description="Create a model insight",
     tags={"modelinsights", "modelmanager", "create"},
     meta={"version": "1.0", "author": "HexagonML"},
@@ -1117,12 +1118,12 @@ async def create_insight(ctx: Context, data: dict) -> dict:
 
 
 @mcp.tool(
-    name="get-insight",
+    name="get_insight",
     description="Retrieve model insights for a usecase",
     tags={"modelinsights", "modelmanager", "get"},
     meta={"version": "1.0", "author": "HexagonML"},
 )
-async def get_insight(ctx: Context, usecase_id: str) -> dict:
+async def get_insights(ctx: Context, usecase_id: str) -> dict:
     if not usecase_id or not isinstance(usecase_id, str):
         return {
             "status": "error",
@@ -1144,8 +1145,6 @@ async def get_insight(ctx: Context, usecase_id: str) -> dict:
             }
 
         response_data = safe_response_to_dict(resp)
-        response_data["status"] = "success"
-        response_data["message"] = "Successfully retrieved model insights"
         return response_data
     except ValueError as e:
         return {
