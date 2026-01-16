@@ -2,6 +2,52 @@
 
 This is a HexagonML MCP server that provides a Model context protocol interface for HexagonML ModelManager tools.
 
+### Local Development
+
+#### Prerequisites
+
+- **Python**: `python3`
+- **Virtualenv**: recommended (project uses `.venv` in examples)
+
+#### Environment variables
+
+The server reads configuration from environment variables (and will also load a local `.env` file automatically).
+
+- **`SECRET_KEY`**: secret key for ModelManager API auth
+- **`MM_API_BASE_URL`**: base URL for ModelManager API (example: `http://localhost:8000`)
+- **`OUTPUT_DIR`**: directory where generated HTML outputs are written
+- **`HOST`** (optional): defaults to `0.0.0.0`
+- **`PORT`** (optional): defaults to `9000`
+
+Example `.env`:
+
+```bash
+SECRET_KEY=your-secret-key
+MM_API_BASE_URL=http://localhost:8000
+OUTPUT_DIR=./output
+HOST=0.0.0.0
+PORT=9000
+```
+
+#### Run the server
+
+From the repo root:
+
+```bash
+python3 server/mm_mcp_server.py
+```
+
+To run with the FastMCP inspector (dev mode):
+
+```bash
+fastmcp dev server/mm_mcp_server.py
+```
+
+#### Troubleshooting
+
+- **Port in use (FastMCP inspector)**: If you see `Proxy Server PORT IS IN USE` (commonly `6277`), stop the previous inspector process and retry.
+- **Missing env vars**: The server will exit with a message listing missing required variables.
+
 ### Configuration For mcp integration on host (g: windsurf, vscode, claude desktop)
 
 #### Local Configuration
@@ -53,3 +99,32 @@ This is a HexagonML MCP server that provides a Model context protocol interface 
   }
 }
 ```
+
+```
+Docker Commands
+
+Build Image
+docker build --platform=linux/amd64 -t modelmanagerdev/mcp:version_id .
+
+Run Container
+docker run --platform=linux/amd64  -d --name mm-mcp -p 9000:9000 --env-file .env modelmanagerdev/mcp:v6
+```
+
+### Model Insights Tools
+
+The server exposes Model Insights endpoints via MCP tools.
+
+#### Create Insight
+
+- **Tool name**: `create_insight`
+- **Input**: `data` (dict)
+- **Backend**: `POST /api/mmanager-modelinsights/create_insight/`
+
+#### Get Insights
+
+- **Tool name**: `get_insight`
+- **Input**: `usecase_id` (str)
+- **Backend**: `GET /api/mmanager-modelinsights/get_insights/?usecase_id=...`
+- **Response shape**:
+  - If the backend returns a dict, the tool returns that dict.
+  - If the backend returns a list, the tool returns `{ "data": [...] }`.

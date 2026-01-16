@@ -3,3 +3,4 @@ venv
 .venv
 Dockerfile
 __pycache__
+*.bak
