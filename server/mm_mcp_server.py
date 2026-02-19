@@ -27,7 +27,7 @@ import asyncio
 import os
 import sys
 from urllib.parse import urlparse
-from mmanager.mmanager import Model, Usecase, ModelCard, ModelInsights
+from mmanager.mmanager import Model, Usecase, ModelCard, ModelInsights, ForecastingApi
 
 # Load environment variables from .env file
 load_dotenv()
@@ -153,6 +153,12 @@ def get_modelinsights_client(ctx: Context) -> ModelInsights:
     base_url = ctx.request_context.lifespan_context.api_base_url
     return ModelInsights(secret_key, base_url)
 
+def get_forecast_client(ctx: Context) -> ForecastingApi:
+    """Return a ForecastingApi client using credentials from context."""
+    secret_key = ctx.request_context.lifespan_context.secret_key
+    base_url = ctx.request_context.lifespan_context.api_base_url
+    return ForecastingApi(secret_key, base_url)
+
 def get_mm_client(ctx: Context, client_type: str):
     """Return the correct ModelManager client (Model or Usecase) based on client_type."""
     if client_type == 'model':
@@ -163,6 +169,8 @@ def get_mm_client(ctx: Context, client_type: str):
         return get_modelcard_client(ctx)
     elif client_type == 'modelinsights':
         return get_modelinsights_client(ctx)
+    elif client_type == 'forecast':
+        return get_forecast_client(ctx)
     else:
         raise ValueError(f"Unknown client_type: {client_type}")
 
@@ -879,6 +887,74 @@ async def get_insights(ctx: Context, usecase_id: str) -> dict:
             "error_type": type(e).__name__,
         }
 
+@mcp.tool(
+    name="get_forecast",
+    description="Retrieve forecast for a usecase",
+    tags={"Forecast", "modelmanager", "get", "forecasting_usecase"},
+    meta={"version": "1.0", "author": "HexagonML"},
+)
+async def get_forecast(
+    ctx: Context, 
+    usecase_name: str = None,
+    usecase_id: str = None,
+    series: str = None,
+    condition_one: str = None,
+    condition_two: str = None,
+    condition_three: str = None,
+    prediction_period: str = None
+) -> dict:
+    # Build payload from individual parameters
+    payload = {}
+    
+    if usecase_id:
+        payload["usecase_id"] = usecase_id
+    elif usecase_name:
+        payload["usecase_name"] = usecase_name
+    else:
+        return {
+            "status": "error",
+            "message": "Either usecase_name or usecase_id must be provided",
+            "error_type": "ValidationError",
+        }
+    
+    if series:
+        payload["series"] = series
+    if condition_one:
+        payload["condition_one"] = condition_one
+    if condition_two:
+        payload["condition_two"] = condition_two
+    if condition_three:
+        payload["condition_three"] = condition_three
+    if prediction_period:
+        payload["prediction_period"] = prediction_period
+
+    try:
+        usecase_forecast_client = get_mm_client(ctx, 'forecast')
+        resp = await asyncio.to_thread(usecase_forecast_client.get_forecast, payload)
+
+        if hasattr(resp, 'status_code') and resp.status_code >= 400:
+            error_msg = getattr(resp, 'text', str(resp))
+            return {
+                "status": "error",
+                "message": f"API error: {error_msg}",
+                "error_type": "APIError",
+                "status_code": resp.status_code,
+            }
+
+        response_data = safe_response_to_dict(resp)
+        return response_data
+    except ValueError as e:
+        return {
+            "status": "error",
+            "message": f"Invalid parameter value: {str(e)}",
+            "error_type": "ValueError",
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Failed to get model forecast: {str(e)}",
+            "error_type": type(e).__name__,
+        }
 
 async def main():
     """Main entry point for the MCP server.

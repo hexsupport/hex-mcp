@@ -128,3 +128,16 @@ The server exposes Model Insights endpoints via MCP tools.
 - **Response shape**:
   - If the backend returns a dict, the tool returns that dict.
   - If the backend returns a list, the tool returns `{ "data": [...] }`.
+
+### Forecast Tools
+
+#### Get Forecast
+
+- **Tool name**: `get_forecast`
+- **Input**: `payload` (dict)
+- **Backend**: `POST /api/mmanager-forecast/get_forecast/`
+
+### Run Command (Locally run MCP Server)
+```bash
+fastmcp run server/mm_mcp_server.py --transport http --host 127.0.0.1 --port 8080
+```
