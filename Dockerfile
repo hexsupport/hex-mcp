@@ -19,4 +19,4 @@ RUN uv pip install --system .
 
 EXPOSE ${PORT}
 
-CMD ["sh", "-c", "fastmcp run server/mm_mcp_server.py:mcp --no-banner --transport http --host 0.0.0.0 --port $PORT"]
+CMD ["sh", "-c", "fastmcp run server/server_simple.py:mcp --no-banner --transport http --host 0.0.0.0 --port $PORT"]
