@@ -896,12 +896,12 @@ async def get_insights(ctx: Context, usecase_id: str) -> dict:
 async def get_forecast(
     ctx: Context, 
     usecase_name: str = None,
-    usecase_id: str = None,
+    usecase_id: int = None,
     series: str = None,
     condition_one: str = None,
     condition_two: str = None,
     condition_three: str = None,
-    prediction_period: str = None
+    prediction_period: int = None
 ) -> dict:
     # Build payload from individual parameters
     payload = {}
