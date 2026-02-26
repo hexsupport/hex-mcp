@@ -1,6 +1,7 @@
 """
 Validation functions for ModelManager MCP server payloads.
 """
+from typing import Union
 
 def validate_forecast_payload(payload: dict) -> dict:
     """Validate forecast payload parameters.
@@ -28,10 +29,10 @@ def validate_forecast_payload(payload: dict) -> dict:
     
     # Validate parameter types
     if "usecase_id" in payload and payload["usecase_id"] is not None:
-        if not isinstance(payload["usecase_id"], int):
+        if not isinstance(payload["usecase_id"], Union[str, int]):
             return {
                 "status": "error",
-                "message": "usecase_id must be an integer",
+                "message": "usecase_id must be a string or integer",
                 "error_type": "ValidationError",
             }
     
@@ -76,10 +77,10 @@ def validate_forecast_payload(payload: dict) -> dict:
             }
     
     if "prediction_period" in payload and payload["prediction_period"] is not None:
-        if not isinstance(payload["prediction_period"], int):
+        if not isinstance(payload["prediction_period"], Union[str, int]):
             return {
                 "status": "error",
-                "message": "prediction_period must be an integer",
+                "message": "prediction_period must be a string or integer",
                 "error_type": "ValidationError",
             }
     

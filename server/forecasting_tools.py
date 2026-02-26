@@ -12,6 +12,7 @@ from validators import validate_forecast_payload
 from utils import safe_response_to_dict, create_error_response
 import asyncio
 
+
 @mcp.tool(
     name="get_forecast",
     description="Retrieve forecast for a usecase",
@@ -21,25 +22,25 @@ import asyncio
 async def get_forecast(
     ctx: Context, 
     usecase_name: str = None,
-    usecase_id: int = None,
+    usecase_id: str = None,
     series: str = None,
     condition_one: str = None,
     condition_two: str = None,
     condition_three: str = None,
-    prediction_period: int = None
+    prediction_period: str = None
 ) -> dict:
     """Retrieve forecast for a usecase.
     
     Args:
         ctx: The MCP server context containing authentication and configuration.
         usecase_name: Name of the usecase to retrieve forecast for.
-        usecase_id: ID of the usecase to retrieve forecast for.
+        usecase_id: ID of the usecase (numeric string or integer).
         series: Series name for the forecast.
         condition_one: First condition parameter.
         condition_two: Second condition parameter.
         condition_three: Third condition parameter.
-        prediction_period: Period for prediction (number of periods).
-        
+        prediction_period: Period for prediction as number (e.g., "30").
+
     Returns:
         dict: Response containing forecast data or error information.
     """
