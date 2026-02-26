@@ -1,0 +1,13 @@
+{
+    "model_data" : {
+    "project": "45", 
+    "transformerType": "Classification", 
+    "datasetinsertionType": "Manual", 
+    "training_dataset": "../model_assets/train.csv",
+    "test_dataset": "../model_assets/test.csv",
+    "pred_dataset": "../model_assets/pred.csv",
+    "actual_dataset": "../model_assets/truth.csv",
+    "model_file_path": "../model_assets/model.json",
+    "target_column": "class"
+    }
+}

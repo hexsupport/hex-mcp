@@ -1,0 +1,28 @@
+{
+"usecase_info" : {
+    "name": "Some Test MM Forecasting Usecase May28",
+    "usecase_type": "Forecasting",
+    "author": "author",
+    "description": "This is a test usecase.",
+    "source": "",
+    "contributor": "",
+    "image": "",
+    "performance_data_selection": "",
+    "applications": ""
+},
+
+"forecasting_fields" : {
+    "performance_data_selection": "{'from':'2020-09-09', 'to':'2020-11-01'}",
+    "notification_emails": ["user@hexagon-ml.com"],
+    "forecasting_template": "two_conditions"
+},
+
+"forecasting_feature_tabs" : {
+    "result_tab":true,
+    "series_tab":true,
+    "condition_tab":true,
+    "performance_tab":true,
+    "ab_testing_tab":true,
+    "release_tab":true
+}
+}
