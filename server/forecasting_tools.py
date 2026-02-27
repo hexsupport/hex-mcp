@@ -9,7 +9,7 @@ from fastmcp import Context
 from config import mcp
 from clients import get_mm_client
 from validators import validate_forecast_payload
-from utils import safe_response_to_dict, create_error_response
+from utils import safe_response_to_dict, create_error_response, normalize_tool_response
 import asyncio
 
 
@@ -46,16 +46,20 @@ async def get_forecast(
     """
     # Build payload from individual parameters
     payload = {}
-    
-    if usecase_id is not None:
-        payload["usecase_id"] = usecase_id
-    elif usecase_name is not None:
-        payload["usecase_name"] = usecase_name
-    else:
-        await ctx.error("Either usecase_name or usecase_id must be provided")
+
+    usecase_id_clean = usecase_id.strip() if isinstance(usecase_id, str) else None
+    usecase_name_clean = usecase_name.strip() if isinstance(usecase_name, str) else None
+
+    if usecase_id_clean:
+        payload["usecase_id"] = usecase_id_clean
+    if usecase_name_clean:
+        payload["usecase_name"] = usecase_name_clean
+
+    if "usecase_id" not in payload and "usecase_name" not in payload:
+        await ctx.error("At least one of usecase_id or usecase_name must be provided")
         return create_error_response(
-            message="Either usecase_name or usecase_id must be provided",
-            error_type="ValidationError"
+            message="At least one of usecase_id or usecase_name must be provided",
+            error_type="ValidationError",
         )
     
     # Add optional parameters
@@ -77,7 +81,7 @@ async def get_forecast(
         await ctx.error(validated_payload.get("message", "Payload validation failed"))
         return validated_payload
 
-    await ctx.info(f"Retrieving forecast for usecase: {usecase_name or usecase_id}")
+    await ctx.info(f"Retrieving forecast for usecase: {usecase_name_clean or usecase_id_clean}")
     await ctx.report_progress(progress=20, total=100)
 
     try:
@@ -99,8 +103,11 @@ async def get_forecast(
         response_data = safe_response_to_dict(resp)
         await ctx.info("Forecast retrieved successfully")
         await ctx.report_progress(progress=100, total=100)
-        
-        return response_data
+
+        return normalize_tool_response(
+            response_data,
+            success_message="Successfully retrieved forecast",
+        )
         
     except ValueError as e:
         await ctx.error(f"Validation error: {str(e)}")

@@ -15,11 +15,21 @@ import asyncio
     description="Retrieve modelcard for a given model with optional filtering",
     tags={"modelcard", "modelmanager"},
     meta={"version": "1.0", "author": "HexagonML"})
-async def get_modelcard_data(ctx: Context, usecase_id: str = None, model_id: str = None, series: str = None, condition_one: str = None, condition_two: str = None, condition_three: str = None) -> dict:
+async def get_modelcard_data(
+    ctx: Context,
+    usecase_name: str = None,
+    usecase_id: str = None,
+    model_id: str = None,
+    series: str = None,
+    condition_one: str = None,
+    condition_two: str = None,
+    condition_three: str = None,
+) -> dict:
     """Retrieve modelcard data for a specific model or usecase with optional filtering.
     
     Args:
         ctx: The MCP server context containing authentication and configuration.
+        usecase_name: Name of the usecase to filter modelcards (optional).
         usecase_id: The usecase ID to filter modelcards (optional).
         model_id: The model ID to filter modelcards (optional).
         series: The series name to filter modelcards (optional).
@@ -30,20 +40,26 @@ async def get_modelcard_data(ctx: Context, usecase_id: str = None, model_id: str
     Returns:
         dict: Response containing modelcard data or error information.
     """
-    # Validate that at least one parameter is provided
-    if not usecase_id and not model_id:
-        await ctx.error("At least one of usecase_id or model_id must be provided")
+    # Validate that at least one identifier is provided
+    usecase_id_clean = usecase_id.strip() if isinstance(usecase_id, str) else None
+    usecase_name_clean = usecase_name.strip() if isinstance(usecase_name, str) else None
+    model_id_clean = model_id.strip() if isinstance(model_id, str) else None
+
+    if not usecase_id_clean and not usecase_name_clean and not model_id_clean:
+        await ctx.error("At least one of usecase_id, usecase_name, or model_id must be provided")
         return create_error_response(
-            message="At least one of usecase_id or model_id must be provided",
-            error_type="ValidationError"
+            message="At least one of usecase_id, usecase_name, or model_id must be provided",
+            error_type="ValidationError",
         )
     
     # Build data dict with all provided parameters
     data = {}
-    if usecase_id is not None and usecase_id.strip():
-        data["usecase_id"] = usecase_id
-    if model_id is not None and model_id.strip():
-        data["model_id"] = model_id
+    if usecase_id_clean:
+        data["usecase_id"] = usecase_id_clean
+    if usecase_name_clean:
+        data["usecase_name"] = usecase_name_clean
+    if model_id_clean:
+        data["model_id"] = model_id_clean
     if series is not None and series.strip():
         data["series"] = series
     if condition_one is not None and condition_one.strip():
@@ -100,12 +116,22 @@ async def get_modelcard_data(ctx: Context, usecase_id: str = None, model_id: str
     tags={"modelcard", "modelmanager", "create"},
     meta={"version": "1.0", "author": "HexagonML"},
 )
-async def create_modelcard(ctx: Context, usecase_id: str, model_id: str = None, series: str = None, condition_one: str = None, condition_two: str = None, condition_three: str = None) -> dict:
+async def create_modelcard(
+    ctx: Context,
+    usecase_name: str = None,
+    usecase_id: str = None,
+    model_id: str = None,
+    series: str = None,
+    condition_one: str = None,
+    condition_two: str = None,
+    condition_three: str = None,
+) -> dict:
     """Create a modelcard for a usecase with required parameters.
     
     Args:
         ctx: The MCP server context containing authentication and configuration.
-        usecase_id: The usecase ID to create the modelcard for (required).
+        usecase_name: Name of the usecase to create the modelcard for (optional).
+        usecase_id: The usecase ID to create the modelcard for (optional).
         model_id: The model ID to create the modelcard for (optional, required if usecase is classification or regression).
         series: The series name for the modelcard (optional).
         condition_one: First condition parameter (optional).
@@ -115,18 +141,23 @@ async def create_modelcard(ctx: Context, usecase_id: str, model_id: str = None, 
     Returns:
         dict: Response containing the created modelcard data or error information.
     """
-    # Validate required fields
-    if not usecase_id or not usecase_id.strip():
-        await ctx.error("Usecase ID cannot be empty")
+    # Validate required identifier
+    usecase_id_clean = usecase_id.strip() if isinstance(usecase_id, str) else None
+    usecase_name_clean = usecase_name.strip() if isinstance(usecase_name, str) else None
+
+    if not usecase_id_clean and not usecase_name_clean:
+        await ctx.error("At least one of usecase_id or usecase_name must be provided")
         return create_error_response(
-            message="Usecase ID is required",
-            error_type="ValidationError"
+            message="At least one of usecase_id or usecase_name must be provided",
+            error_type="ValidationError",
         )
     
     # Build data dict with all provided parameters
     data = {}
-    if usecase_id is not None and usecase_id.strip():
-        data["usecase_id"] = usecase_id
+    if usecase_id_clean:
+        data["usecase_id"] = usecase_id_clean
+    if usecase_name_clean:
+        data["usecase_name"] = usecase_name_clean
     if model_id is not None and model_id.strip():
         data["model_id"] = model_id
     if series is not None and series.strip():
@@ -138,7 +169,7 @@ async def create_modelcard(ctx: Context, usecase_id: str, model_id: str = None, 
     if condition_three is not None and condition_three.strip():
         data["condition_three"] = condition_three
 
-    await ctx.info(f"Creating modelcard for usecase: {usecase_id}")
+    await ctx.info(f"Creating modelcard for usecase: {usecase_name_clean or usecase_id_clean}")
     await ctx.report_progress(progress=20, total=100)
 
     try:
