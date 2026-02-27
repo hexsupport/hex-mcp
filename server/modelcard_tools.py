@@ -192,6 +192,21 @@ async def create_modelcard(
         await ctx.info("Modelcard created successfully")
         await ctx.report_progress(progress=100, total=100)
 
+        normalized = normalize_tool_response(response_data)
+        if normalized.get("status") == "error":
+            return normalized
+
+        required_success_fields = ["pdf_url", "modelcard_pdf_id", "modelcard_id"]
+        missing_fields = [
+            f for f in required_success_fields if not response_data.get(f)
+        ]
+
+        if missing_fields:
+            return create_error_response(
+                message=f"Modelcard PDF not created. Missing fields: {', '.join(missing_fields)}",
+                error_type="APIError",
+            )
+
         return normalize_tool_response(
             response_data,
             success_message="Successfully created modelcard",
