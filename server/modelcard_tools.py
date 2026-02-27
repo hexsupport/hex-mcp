@@ -8,7 +8,7 @@ which provide standardized documentation for machine learning models.
 from fastmcp import Context
 from config import mcp
 from clients import get_mm_client
-from utils import safe_response_to_dict, create_error_response
+from utils import safe_response_to_dict, create_error_response, normalize_tool_response
 import asyncio
 
 @mcp.tool(name="get_modelcard_data",
@@ -75,10 +75,11 @@ async def get_modelcard_data(ctx: Context, usecase_id: str = None, model_id: str
         response_data = safe_response_to_dict(modelcard_resp)
         await ctx.info("Modelcard data retrieved successfully")
         await ctx.report_progress(progress=100, total=100)
-        
-        response_data["status"] = "success"
-        response_data["message"] = "Successfully retrieved modelcard data"
-        return response_data
+
+        return normalize_tool_response(
+            response_data,
+            success_message="Successfully retrieved modelcard data",
+        )
         
     except ValueError as e:
         await ctx.error(f"Validation error: {str(e)}")
@@ -159,10 +160,11 @@ async def create_modelcard(ctx: Context, usecase_id: str, model_id: str = None, 
         response_data = safe_response_to_dict(resp)
         await ctx.info("Modelcard created successfully")
         await ctx.report_progress(progress=100, total=100)
-        
-        response_data["status"] = "success"
-        response_data["message"] = "Successfully created modelcard"
-        return response_data
+
+        return normalize_tool_response(
+            response_data,
+            success_message="Successfully created modelcard",
+        )
         
     except ValueError as e:
         await ctx.error(f"Validation error: {str(e)}")
@@ -177,55 +179,58 @@ async def create_modelcard(ctx: Context, usecase_id: str, model_id: str = None, 
             error_type=type(e).__name__
         )
 
-@mcp.tool(
-    name="create_modelcard_bulk",
-    description="Create modelcards in bulk for a usecase",
-    tags={"modelcard", "modelmanager", "create"},
-    meta={"version": "1.0", "author": "HexagonML"},
-)
-async def create_modelcard_bulk(ctx: Context, usecase_id: str) -> dict:
-    """Create modelcards in bulk for a usecase.
+# @mcp.tool(
+#     name="create_modelcard_bulk",
+#     description="Create modelcards in bulk for a usecase",
+#     tags={"modelcard", "modelmanager", "create"},
+#     meta={"version": "1.0", "author": "HexagonML"},
+# )
+# async def create_modelcard_bulk(ctx: Context, usecase_id: str) -> dict:
+#     """Create modelcards in bulk for a usecase.
     
-    Args:
-        ctx: The MCP server context containing authentication and configuration.
-        usecase_id: The usecase ID to create modelcards for (required).
+#     Args:
+#         ctx: The MCP server context containing authentication and configuration.
+#         usecase_id: The usecase ID to create modelcards for (required).
         
-    Returns:
-        dict: Response containing the bulk creation results or error information.
-    """
-    # Validate required field
-    if not usecase_id or not usecase_id.strip():
-        await ctx.error("Usecase ID cannot be empty")
-        return create_error_response(
-            message="Usecase ID is required",
-            error_type="ValidationError"
-        )
+#     Returns:
+#         dict: Response containing the bulk creation results or error information.
+#     """
+#     # Validate required field
+#     if not usecase_id or not usecase_id.strip():
+#         await ctx.error("Usecase ID cannot be empty")
+#         return create_error_response(
+#             message="Usecase ID is required",
+#             error_type="ValidationError"
+#         )
 
-    await ctx.info(f"Creating bulk modelcards for usecase: {usecase_id}")
-    await ctx.report_progress(progress=20, total=100)
+#     await ctx.info(f"Creating bulk modelcards for usecase: {usecase_id}")
+#     await ctx.report_progress(progress=20, total=100)
 
-    try:
-        modelcard_client = get_mm_client(ctx, 'modelcard')
-        await ctx.report_progress(progress=40, total=100)
+#     try:
+#         modelcard_client = get_mm_client(ctx, 'modelcard')
+#         await ctx.report_progress(progress=40, total=100)
         
-        resp = await asyncio.to_thread(modelcard_client.create_modelcard_bulk, usecase_id)
-        await ctx.report_progress(progress=80, total=100)
+#         resp = await asyncio.to_thread(modelcard_client.create_modelcard_bulk, usecase_id)
+#         await ctx.report_progress(progress=80, total=100)
 
-        response_data = safe_response_to_dict(resp)
-        await ctx.info("Bulk modelcards created successfully")
-        await ctx.report_progress(progress=100, total=100)
+#         response_data = safe_response_to_dict(resp)
+#         await ctx.info("Bulk modelcards created successfully")
+#         await ctx.report_progress(progress=100, total=100)
+
+#         return normalize_tool_response(
+#             response_data,
+#             success_message="Successfully created modelcards in bulk",
+#         )
         
-        return response_data
-        
-    except ValueError as e:
-        await ctx.error(f"Validation error: {str(e)}")
-        return create_error_response(
-            message=f"Validation error: {str(e)}",
-            error_type="ValueError"
-        )
-    except Exception as e:
-        await ctx.error(f"Failed to create bulk modelcards: {str(e)}")
-        return create_error_response(
-            message=f"Failed to create bulk modelcards: {str(e)}",
-            error_type=type(e).__name__
-        )
+#     except ValueError as e:
+#         await ctx.error(f"Validation error: {str(e)}")
+#         return create_error_response(
+#             message=f"Validation error: {str(e)}",
+#             error_type="ValueError"
+#         )
+#     except Exception as e:
+#         await ctx.error(f"Failed to create bulk modelcards: {str(e)}")
+#         return create_error_response(
+#             message=f"Failed to create bulk modelcards: {str(e)}",
+#             error_type=type(e).__name__
+#         )

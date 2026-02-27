@@ -19,7 +19,8 @@ def safe_response_to_dict(response: Union[Dict, httpx.Response, Any]) -> Dict:
     """
     if isinstance(response, dict):
         return response
-    elif hasattr(response, 'json'):
+
+    if hasattr(response, 'json'):
         try:
             return response.json()
         except Exception:
@@ -70,6 +71,34 @@ def create_success_response(data: Any = None, message: str = "Operation successf
         response["data"] = data
     
     return response
+
+
+def normalize_tool_response(data: Any, success_message: str = None) -> Dict:
+    if isinstance(data, dict):
+        if data.get("status") == "error":
+            return data
+
+        if data.get("error"):
+            return create_error_response(
+                message=str(data.get("error")),
+                error_type="APIError",
+            )
+
+        if data.get("errors"):
+            return create_error_response(
+                message=str(data.get("errors")),
+                error_type="APIError",
+            )
+
+        if success_message is not None:
+            data["status"] = "success"
+            data["message"] = success_message
+
+        return data
+
+    if success_message is None:
+        success_message = "Operation successful"
+    return create_success_response(data=data, message=success_message)
 
 def validate_required_fields(data: Dict, required_fields: list) -> list:
     """Validate that required fields are present in data.

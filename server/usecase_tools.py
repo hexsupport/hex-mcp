@@ -8,7 +8,7 @@ usecases (projects) in the ModelManager service, including forecasting usecases.
 from fastmcp import Context
 from config import mcp
 from clients import get_mm_client
-from utils import safe_response_to_dict, create_error_response
+from utils import safe_response_to_dict, create_error_response, normalize_tool_response
 import asyncio
 
 @mcp.tool(
@@ -380,11 +380,11 @@ async def get_usecase_data(ctx: Context) -> dict:
         data = safe_response_to_dict(usecases_response)
         await ctx.info(f"Retrieved {len(data) if isinstance(data, list) else 0} usecases")
         await ctx.report_progress(progress=100, total=100)
-        
-        return {
-            'status': 'success',
-            'summary': data
-        }
+
+        return normalize_tool_response(
+            {"summary": data},
+            success_message="Successfully retrieved usecases",
+        )
         
     except ValueError as e:
         await ctx.error(f"Validation error: {str(e)}")
