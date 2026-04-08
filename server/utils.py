@@ -47,8 +47,8 @@ def safe_response_to_dict(response: Union[Dict, httpx.Response, Any]) -> Dict:
     if hasattr(response, 'json'):
         try:
             return response.json()
-        except (ValueError, json.JSONDecodeError) as exc:
-            logger.debug("Failed to parse response as JSON: %s", exc)
+        except Exception as exc:
+            logger.warning("Failed to parse response as JSON (%s): %s", type(exc).__name__, exc)
             return {"data": str(response)}
     elif hasattr(response, '__dict__'):
         # Filter private/dunder attributes to avoid leaking internal state

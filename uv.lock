@@ -456,19 +456,25 @@ wheels = [
 [[package]]
 name = "hex-mm-mcp"
 version = "0.1.0"
-source = { virtual = "." }
+source = { editable = "." }
 dependencies = [
     { name = "fastmcp" },
     { name = "ipython", version = "8.36.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "ipython", version = "9.2.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "loguru" },
     { name = "mmanager" },
+    { name = "python-dotenv" },
+    { name = "requests" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "fastmcp", specifier = ">=2.13.1" },
     { name = "ipython", specifier = ">=8.12.0" },
-    { name = "mmanager", specifier = "==2.3.9" },
+    { name = "loguru", specifier = ">=0.7.2" },
+    { name = "mmanager", specifier = "==2.4.1" },
+    { name = "python-dotenv", specifier = ">=1.0.0" },
+    { name = "requests", specifier = ">=2.31.0" },
 ]
 
 [[package]]
@@ -709,6 +715,19 @@ wheels = [
 ]
 
 [[package]]
+name = "loguru"
+version = "0.7.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "colorama", marker = "sys_platform == 'win32'" },
+    { name = "win32-setctime", marker = "sys_platform == 'win32'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/3a/05/a1dae3dffd1116099471c643b8924f5aa6524411dc6c63fdae648c4f1aca/loguru-0.7.3.tar.gz", hash = "sha256:19480589e77d47b8d85b2c827ad95d49bf31b0dcde16593892eb51dd18706eb6", size = 63559, upload-time = "2024-12-06T11:20:56.608Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/0c/29/0348de65b8cc732daa3e33e67806420b2ae89bdce2b04af740289c5c6c8c/loguru-0.7.3-py3-none-any.whl", hash = "sha256:31a33c10c8e1e10422bfd431aeb5d351c7cf7fa671e3c4df004162264b28220c", size = 61595, upload-time = "2024-12-06T11:20:54.538Z" },
+]
+
+[[package]]
 name = "markdown-it-py"
 version = "3.0.0"
 source = { registry = "https://pypi.org/simple" }
@@ -768,7 +787,7 @@ wheels = [
 
 [[package]]
 name = "mmanager"
-version = "2.3.9"
+version = "2.4.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "colorama" },
@@ -776,9 +795,9 @@ dependencies = [
     { name = "ipython", version = "9.2.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "requests" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/44/93/85d53ac3401356c1642c71a26a55a768c7eb222a5ed52ec3bc4e0d8f7807/mmanager-2.3.9.tar.gz", hash = "sha256:c2b263fe998251cf71cac4549d7be54f6bd4a257766985966b99dbca22144c9c", size = 91500302, upload-time = "2025-06-05T11:29:41.85Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/04/00/dc546a780896b3f79c31a1e469b59f78c9b6e179ecf00ca6d7d254bc5ab1/mmanager-2.4.1.tar.gz", hash = "sha256:b98d465d6d1c12f9d24e871d5ef9b2d19f6af2e64bad6b96fba51e63f4ab54f9", size = 91508385, upload-time = "2026-02-26T16:28:11.344Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/fb/60/fe9753020cefe7e25b457f9c8fbbc9fb8851765d556d4f78f84f0769b8d2/mmanager-2.3.9-py3-none-any.whl", hash = "sha256:2cfab82e4fd7e74299bf7ded96faa90bcaf0ce8b9a126239c44ba27c07cda4b0", size = 91537302, upload-time = "2025-06-05T11:28:01.404Z" },
+    { url = "https://files.pythonhosted.org/packages/88/99/f9b7a95502674992c5e1c0f891d47a8fcdfc84180723fc198dba69f3547c/mmanager-2.4.1-py3-none-any.whl", hash = "sha256:79a87f8371eef4b307f056188ba2dd00bfa7729124c604c452004b34ecff3e58", size = 91547875, upload-time = "2026-02-26T16:27:11.092Z" },
 ]
 
 [[package]]
@@ -1631,6 +1650,15 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/2b/fb/c492d6daa5ec067c2988ac80c61359ace5c4c674c532985ac5a123436cec/websockets-15.0.1-pp310-pypy310_pp73-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:b359ed09954d7c18bbc1680f380c7301f92c60bf924171629c5db97febb12f04", size = 174155, upload-time = "2025-03-05T20:03:25.321Z" },
     { url = "https://files.pythonhosted.org/packages/68/a1/dcb68430b1d00b698ae7a7e0194433bce4f07ded185f0ee5fb21e2a2e91e/websockets-15.0.1-pp310-pypy310_pp73-win_amd64.whl", hash = "sha256:cad21560da69f4ce7658ca2cb83138fb4cf695a2ba3e475e0559e05991aa8122", size = 176884, upload-time = "2025-03-05T20:03:27.934Z" },
     { url = "https://files.pythonhosted.org/packages/fa/a8/5b41e0da817d64113292ab1f8247140aac61cbf6cfd085d6a0fa77f4984f/websockets-15.0.1-py3-none-any.whl", hash = "sha256:f7a866fbc1e97b5c617ee4116daaa09b722101d4a3c170c787450ba409f9736f", size = 169743, upload-time = "2025-03-05T20:03:39.41Z" },
+]
+
+[[package]]
+name = "win32-setctime"
+version = "1.2.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/b3/8f/705086c9d734d3b663af0e9bb3d4de6578d08f46b1b101c2442fd9aecaa2/win32_setctime-1.2.0.tar.gz", hash = "sha256:ae1fdf948f5640aae05c511ade119313fb6a30d7eabe25fef9764dca5873c4c0", size = 4867, upload-time = "2024-12-07T15:28:28.314Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e1/07/c6fe3ad3e685340704d314d765b7912993bcb8dc198f0e7a89382d37974b/win32_setctime-1.2.0-py3-none-any.whl", hash = "sha256:95d644c4e708aba81dc3704a116d8cbc974d70b3bdb8be1d150e36be6e9d1390", size = 4083, upload-time = "2024-12-07T15:28:26.465Z" },
 ]
 
 [[package]]

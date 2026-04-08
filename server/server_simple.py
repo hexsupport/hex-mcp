@@ -14,5 +14,6 @@ from clients import server_lifespan
 # import modelcard_tools
 import forecasting_tools
 import forecasting_prompts  # noqa: F401 — side-effect import; registers @mcp.prompt
+import health  # noqa: F401 — side-effect import; registers /health endpoint
 
 # The server is ready - fastmcp will handle the rest
