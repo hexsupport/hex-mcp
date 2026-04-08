@@ -1,0 +1,453 @@
+{
+  "endpoint": "/api/forecasting/get_forecast/",
+  "method": "POST",
+  "description": "Fetches forecasting data with specified filters. Returns various response structures based on validation, resolution, and data availability.",
+  "request_parameters": {
+    "usecase_id": "integer (optional if usecase_name provided)",
+    "usecase_name": "string (optional if usecase_id provided)",
+    "series": "string (required)",
+    "condition_one": "string (required)",
+    "condition_two": "string (optional)",
+    "condition_three": "string (optional)",
+    "prediction_period": "integer or 'All Dates' (optional, default: 'All Dates')"
+  },
+  "response_structures": {
+    "1_validation_error_missing_usecase": {
+      "http_status": 400,
+      "description": "Neither usecase_id nor usecase_name provided",
+      "example": {
+        "success": false,
+        "method": "get_forecast",
+        "status_code": 400,
+        "error": "usecase_id or usecase_name is required",
+        "error_type": null,
+        "data": null
+      }
+    },
+    "2_validation_error_invalid_usecase_id": {
+      "http_status": 400,
+      "description": "usecase_id is not a valid integer",
+      "example": {
+        "success": false,
+        "method": "get_forecast",
+        "status_code": 400,
+        "error": "usecase_id must be an integer",
+        "error_type": null,
+        "data": null
+      }
+    },
+    "3_validation_error_missing_series": {
+      "http_status": 400,
+      "description": "series parameter is missing",
+      "example": {
+        "success": false,
+        "method": "get_forecast",
+        "status_code": 400,
+        "error": "series is required",
+        "error_type": null,
+        "data": null
+      }
+    },
+    "4_validation_error_missing_condition_one": {
+      "http_status": 400,
+      "description": "condition_one parameter is missing",
+      "example": {
+        "success": false,
+        "method": "get_forecast",
+        "status_code": 400,
+        "error": "condition_one is required",
+        "error_type": null,
+        "data": null
+      }
+    },
+    "5_semantic_candidates_found": {
+      "http_status": 200,
+      "description": "No exact match for usecase_name, but semantic matches found",
+      "example": {
+        "success": true,
+        "method": "get_forecast",
+        "status_code": 200,
+        "data": {
+          "msg": "No exact match found for 'Hospital Monitoring'. Showing semantically similar usecases. Please retry with usecase_id.",
+          "usecase_name": "Hospital Monitoring",
+          "semantic_candidates": [
+            {
+              "id": 5,
+              "name": "Hospital Census Monitoring",
+              "distance": 0.23
+            },
+            {
+              "id": 12,
+              "name": "Hospital Patient Monitoring System",
+              "distance": 0.45
+            }
+          ]
+        }
+      }
+    },
+    "6_multiple_candidates_found": {
+      "http_status": 200,
+      "description": "Multiple exact/partial matches found for usecase_name",
+      "example": {
+        "success": true,
+        "method": "get_forecast",
+        "status_code": 200,
+        "data": {
+          "msg": "Multiple usecases match the provided usecase_name. Please select one and retry with usecase_id.",
+          "usecase_name": "Census",
+          "candidates": [
+            {
+              "id": 3,
+              "name": "Covid Census Forecasting"
+            },
+            {
+              "id": 7,
+              "name": "Hospital Census Monitoring"
+            },
+            {
+              "id": 15,
+              "name": "Regional Census Analysis"
+            }
+          ]
+        }
+      }
+    },
+    "7_usecase_not_found": {
+      "http_status": 404,
+      "description": "No usecase found matching the provided name",
+      "example": {
+        "success": false,
+        "method": "get_forecast",
+        "status_code": 404,
+        "error": "No usecase found for 'NonExistentUsecase'.",
+        "error_type": null,
+        "data": null
+      }
+    },
+    "8_invalid_filter_combination": {
+      "http_status": 400,
+      "description": "Filter values are not valid for the usecase",
+      "example": {
+        "success": false,
+        "method": "get_forecast",
+        "status_code": 400,
+        "error": "Invalid filter combination.",
+        "error_type": null,
+        "data": {
+          "error": true,
+          "message": "The conditions applied are not eligible. Please check your filter values and try again.",
+          "invalid_filters": {
+            "series": "invalid_series_value",
+            "condition_one": null,
+            "condition_two": "invalid_facility",
+            "condition_three": null
+          },
+          "available_options": {
+            "series": [
+              "covid_total_census",
+              "covid_icu_census",
+              "covid_ms_census",
+              "noncovid_total_census"
+            ],
+            "condition_one": [
+              "NCAL",
+              "SCAL"
+            ],
+            "conditions": {
+              "NCAL": [
+                "facility_1",
+                "facility_2",
+                "facility_3"
+              ],
+              "SCAL": [
+                "facility_4",
+                "facility_5"
+              ]
+            },
+            "facilityToUnit": {
+              "facility_1": [
+                "unit_a",
+                "unit_b"
+              ],
+              "facility_2": [
+                "unit_c",
+                "unit_d"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "9_success_with_forecast_data": {
+      "http_status": 200,
+      "description": "Successful response with forecast data",
+      "example": {
+        "success": true,
+        "method": "get_forecast",
+        "status_code": 200,
+        "data": {
+          "resolved": true,
+          "usecase": {
+            "id": 5,
+            "name": "Hospital Census Forecasting",
+            "usecase_type": "Multi_Model_Forecasting"
+          },
+          "info": {
+            "condition_type": "three_conditions",
+            "required_filters": [
+              "series",
+              "condition_one",
+              "condition_two"
+            ]
+          },
+          "filters_applied": {
+            "series": "covid_total_census",
+            "condition_one": "NCAL",
+            "condition_two": "facility_1",
+            "condition_three": "unit_a",
+            "prediction_period": 30
+          },
+          "last_actual_update": "2026-04-07",
+          "forecast": [
+            {
+              "Forecast Date": "2026-03-08",
+              "Forecast Value": 125.5,
+              "value_type": "covid_total_census",
+              "rgn_cd": "NCAL",
+              "fac_id_cd": "facility_1",
+              "unit_id": "unit_a"
+            },
+            {
+              "Forecast Date": "2026-03-09",
+              "Forecast Value": 128.3,
+              "value_type": "covid_total_census",
+              "rgn_cd": "NCAL",
+              "fac_id_cd": "facility_1",
+              "unit_id": "unit_a"
+            },
+            {
+              "Forecast Date": "2026-03-10",
+              "Forecast Value": 131.2,
+              "value_type": "covid_total_census",
+              "rgn_cd": "NCAL",
+              "fac_id_cd": "facility_1",
+              "unit_id": "unit_a"
+            }
+          ]
+        }
+      }
+    },
+    "10_success_with_empty_forecast": {
+      "http_status": 200,
+      "description": "Successful response but no forecast data available for the filter combination",
+      "example": {
+        "success": true,
+        "method": "get_forecast",
+        "status_code": 200,
+        "data": {
+          "resolved": true,
+          "usecase": {
+            "id": 5,
+            "name": "Hospital Census Forecasting",
+            "usecase_type": "Multi_Model_Forecasting"
+          },
+          "info": {
+            "condition_type": "three_conditions",
+            "required_filters": [
+              "series",
+              "condition_one",
+              "condition_two"
+            ]
+          },
+          "filters_applied": {
+            "series": "covid_total_census",
+            "condition_one": "NCAL",
+            "condition_two": "facility_1",
+            "condition_three": null,
+            "prediction_period": 30
+          },
+          "last_actual_update": "2026-04-07",
+          "forecast": []
+        }
+      }
+    },
+    "11_success_with_filter_error_details": {
+      "http_status": 200,
+      "description": "Usecase resolved but filters failed validation (alternative error format)",
+      "example": {
+        "success": true,
+        "method": "get_forecast",
+        "status_code": 200,
+        "data": {
+          "resolved": true,
+          "usecase": {
+            "id": 5,
+            "name": "Hospital Census Forecasting",
+            "usecase_type": "Multi_Model_Forecasting"
+          },
+          "info": {
+            "condition_type": "three_conditions",
+            "required_filters": [
+              "series",
+              "condition_one"
+            ]
+          },
+          "filters_applied": {
+            "series": "invalid_series",
+            "condition_one": "NCAL",
+            "condition_two": null,
+            "condition_three": null,
+            "prediction_period": null
+          },
+          "last_actual_update": "2026-04-07",
+          "forecast": [],
+          "filter_error": {
+            "error": true,
+            "message": "The conditions applied are not eligible. Please check your filter values and try again.",
+            "invalid_filters": {
+              "series": "invalid_series",
+              "condition_one": null,
+              "condition_two": null,
+              "condition_three": null
+            },
+            "available_options": {
+              "series": [
+                "covid_total_census",
+                "covid_icu_census"
+              ],
+              "condition_one": [
+                "NCAL",
+                "SCAL"
+              ],
+              "conditions": {},
+              "facilityToUnit": {}
+            }
+          }
+        }
+      }
+    },
+    "12_internal_server_error": {
+      "http_status": 500,
+      "description": "Unexpected server error during processing",
+      "example": {
+        "success": false,
+        "method": "get_forecast",
+        "status_code": 500,
+        "error": "Database connection timeout",
+        "error_type": "OperationalError",
+        "data": null
+      }
+    },
+    "13_embedding_service_busy": {
+      "http_status": 404,
+      "description": "Semantic search service is busy (when using usecase_name)",
+      "example": {
+        "success": false,
+        "method": "get_forecast",
+        "status_code": 404,
+        "error": "Server is busy processing embeddings. Please try again later.",
+        "error_type": null,
+        "data": null
+      }
+    }
+  },
+  "common_response_fields": {
+    "success": {
+      "type": "boolean",
+      "description": "Indicates if the request was successful"
+    },
+    "method": {
+      "type": "string",
+      "description": "Always 'get_forecast' for this endpoint"
+    },
+    "status_code": {
+      "type": "integer",
+      "description": "HTTP status code (200, 400, 404, 500)"
+    },
+    "error": {
+      "type": "string or null",
+      "description": "Error message if success is false"
+    },
+    "error_type": {
+      "type": "string or null",
+      "description": "Python exception class name if applicable"
+    },
+    "data": {
+      "type": "object or null",
+      "description": "Response payload data if success is true"
+    }
+  },
+  "successful_data_structure": {
+    "resolved": {
+      "type": "boolean",
+      "description": "Whether the usecase was successfully resolved"
+    },
+    "usecase": {
+      "type": "object",
+      "fields": {
+        "id": "integer - Usecase ID",
+        "name": "string - Usecase name",
+        "usecase_type": "string - Type of usecase (e.g., Multi_Model_Forecasting)"
+      }
+    },
+    "info": {
+      "type": "object",
+      "fields": {
+        "condition_type": "string - Type of conditions (one_condition, two_conditions, three_conditions)",
+        "required_filters": "array - List of required filter names"
+      }
+    },
+    "filters_applied": {
+      "type": "object",
+      "fields": {
+        "series": "string - Applied series filter",
+        "condition_one": "string - Applied condition_one filter",
+        "condition_two": "string or null - Applied condition_two filter",
+        "condition_three": "string or null - Applied condition_three filter",
+        "prediction_period": "integer or null - Applied prediction period"
+      }
+    },
+    "last_actual_update": {
+      "type": "string or null",
+      "description": "Last actual data update date (ISO format)"
+    },
+    "forecast": {
+      "type": "array",
+      "description": "Array of forecast records",
+      "item_structure": {
+        "Forecast Date": "string - Date of forecast",
+        "Forecast Value": "number - Predicted value",
+        "value_type": "string - Series type",
+        "rgn_cd": "string - Region code",
+        "fac_id_cd": "string - Facility code (if applicable)",
+        "unit_id": "string - Unit ID (if applicable)"
+      }
+    },
+    "filter_error": {
+      "type": "object or undefined",
+      "description": "Present only when filters fail validation after usecase resolution",
+      "fields": {
+        "error": "boolean - Always true",
+        "message": "string - Error message",
+        "invalid_filters": "object - Which filters failed",
+        "available_options": "object - Valid filter options"
+      }
+    }
+  },
+  "http_status_codes": {
+    "200": "Success - Request processed successfully (may include validation warnings)",
+    "400": "Bad Request - Invalid input parameters or filter combination",
+    "404": "Not Found - Usecase not found or service unavailable",
+    "500": "Internal Server Error - Unexpected server error"
+  },
+  "notes": [
+    "The endpoint accepts both plain text and slug formats for filter values (e.g., 'Covid Total Census' or 'covid_total_census')",
+    "When usecase_name is provided without usecase_id, a 3-tier resolution strategy is used: exact match → partial match → semantic similarity",
+    "Semantic candidates include a 'distance' score (lower is better, filtered to <= 0.8)",
+    "The 'forecast' array can be empty if no data matches the filter combination",
+    "Date filtering is applied when both last_actual_update and prediction_period are available",
+    "All datetime values are converted to ISO string format in the response",
+    "Numpy/Pandas types are automatically sanitized to Python native types",
+    "The response may include a 'filter_error' object even with HTTP 200 if usecase resolves but filters are invalid"
+  ]
+}

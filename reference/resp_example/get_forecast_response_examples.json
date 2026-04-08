@@ -1,0 +1,456 @@
+{
+  "api_endpoint": "/api/forecasting/get_forecast/",
+  "description": "Complete collection of real-world response examples from the get_forecast API endpoint",
+  "examples": [
+    {
+      "scenario": "Successful forecast retrieval with data",
+      "request": {
+        "usecase_id": 5,
+        "series": "covid_total_census",
+        "condition_one": "NCAL",
+        "condition_two": "facility_1",
+        "prediction_period": 30
+      },
+      "response": {
+        "success": true,
+        "method": "get_forecast",
+        "status_code": 200,
+        "data": {
+          "resolved": true,
+          "usecase": {
+            "id": 5,
+            "name": "Hospital Census Forecasting",
+            "usecase_type": "Multi_Model_Forecasting"
+          },
+          "info": {
+            "condition_type": "three_conditions",
+            "required_filters": ["series", "condition_one", "condition_two"]
+          },
+          "filters_applied": {
+            "series": "covid_total_census",
+            "condition_one": "NCAL",
+            "condition_two": "facility_1",
+            "condition_three": null,
+            "prediction_period": 30
+          },
+          "last_actual_update": "2026-04-07",
+          "forecast": [
+            {
+              "Forecast Date": "2026-03-08",
+              "Forecast Value": 125.5,
+              "value_type": "covid_total_census",
+              "rgn_cd": "NCAL",
+              "fac_id_cd": "facility_1"
+            },
+            {
+              "Forecast Date": "2026-03-09",
+              "Forecast Value": 128.3,
+              "value_type": "covid_total_census",
+              "rgn_cd": "NCAL",
+              "fac_id_cd": "facility_1"
+            },
+            {
+              "Forecast Date": "2026-03-10",
+              "Forecast Value": 131.2,
+              "value_type": "covid_total_census",
+              "rgn_cd": "NCAL",
+              "fac_id_cd": "facility_1"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "scenario": "Plain text filter values (slug normalization)",
+      "request": {
+        "usecase_id": 5,
+        "series": "Covid Total Census",
+        "condition_one": "NCAL",
+        "condition_two": "Facility 1"
+      },
+      "response": {
+        "success": true,
+        "method": "get_forecast",
+        "status_code": 200,
+        "data": {
+          "resolved": true,
+          "usecase": {
+            "id": 5,
+            "name": "Hospital Census Forecasting",
+            "usecase_type": "Multi_Model_Forecasting"
+          },
+          "info": {
+            "condition_type": "three_conditions",
+            "required_filters": ["series", "condition_one"]
+          },
+          "filters_applied": {
+            "series": "covid_total_census",
+            "condition_one": "NCAL",
+            "condition_two": "facility_1",
+            "condition_three": null,
+            "prediction_period": null
+          },
+          "last_actual_update": "2026-04-07",
+          "forecast": []
+        }
+      }
+    },
+    {
+      "scenario": "Usecase name with semantic candidates",
+      "request": {
+        "usecase_name": "Hospital Monitoring",
+        "series": "covid_total_census",
+        "condition_one": "NCAL"
+      },
+      "response": {
+        "success": true,
+        "method": "get_forecast",
+        "status_code": 200,
+        "data": {
+          "msg": "No exact match found for 'Hospital Monitoring'. Showing semantically similar usecases. Please retry with usecase_id.",
+          "usecase_name": "Hospital Monitoring",
+          "semantic_candidates": [
+            {
+              "id": 5,
+              "name": "Hospital Census Monitoring",
+              "distance": 0.23
+            },
+            {
+              "id": 12,
+              "name": "Hospital Patient Monitoring System",
+              "distance": 0.45
+            },
+            {
+              "id": 18,
+              "name": "Regional Hospital Tracking",
+              "distance": 0.67
+            }
+          ]
+        }
+      }
+    },
+    {
+      "scenario": "Multiple exact matches for usecase name",
+      "request": {
+        "usecase_name": "Census",
+        "series": "covid_total_census",
+        "condition_one": "NCAL"
+      },
+      "response": {
+        "success": true,
+        "method": "get_forecast",
+        "status_code": 200,
+        "data": {
+          "msg": "Multiple usecases match the provided usecase_name. Please select one and retry with usecase_id.",
+          "usecase_name": "Census",
+          "candidates": [
+            {
+              "id": 3,
+              "name": "Covid Census Forecasting"
+            },
+            {
+              "id": 7,
+              "name": "Hospital Census Monitoring"
+            },
+            {
+              "id": 15,
+              "name": "Regional Census Analysis"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "scenario": "Invalid filter combination",
+      "request": {
+        "usecase_id": 5,
+        "series": "invalid_series",
+        "condition_one": "NCAL",
+        "condition_two": "invalid_facility"
+      },
+      "response": {
+        "success": false,
+        "method": "get_forecast",
+        "status_code": 400,
+        "error": "Invalid filter combination.",
+        "error_type": null,
+        "data": {
+          "error": true,
+          "message": "The conditions applied are not eligible. Please check your filter values and try again.",
+          "invalid_filters": {
+            "series": "invalid_series",
+            "condition_one": null,
+            "condition_two": "invalid_facility",
+            "condition_three": null
+          },
+          "available_options": {
+            "series": [
+              "covid_total_census",
+              "covid_icu_census",
+              "covid_ms_census",
+              "noncovid_total_census",
+              "noncovid_icu_census",
+              "noncovid_pedi_census"
+            ],
+            "condition_one": [
+              "NCAL",
+              "SCAL"
+            ],
+            "conditions": {
+              "NCAL": [
+                "facility_1",
+                "facility_2",
+                "facility_3"
+              ],
+              "SCAL": [
+                "facility_4",
+                "facility_5",
+                "facility_6"
+              ]
+            },
+            "facilityToUnit": {
+              "facility_1": [
+                "unit_a",
+                "unit_b",
+                "unit_c"
+              ],
+              "facility_2": [
+                "unit_d",
+                "unit_e"
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "scenario": "Missing required parameter - usecase identifier",
+      "request": {
+        "series": "covid_total_census",
+        "condition_one": "NCAL"
+      },
+      "response": {
+        "success": false,
+        "method": "get_forecast",
+        "status_code": 400,
+        "error": "usecase_id or usecase_name is required",
+        "error_type": null,
+        "data": null
+      }
+    },
+    {
+      "scenario": "Missing required parameter - series",
+      "request": {
+        "usecase_id": 5,
+        "condition_one": "NCAL"
+      },
+      "response": {
+        "success": false,
+        "method": "get_forecast",
+        "status_code": 400,
+        "error": "series is required",
+        "error_type": null,
+        "data": null
+      }
+    },
+    {
+      "scenario": "Missing required parameter - condition_one",
+      "request": {
+        "usecase_id": 5,
+        "series": "covid_total_census"
+      },
+      "response": {
+        "success": false,
+        "method": "get_forecast",
+        "status_code": 400,
+        "error": "condition_one is required",
+        "error_type": null,
+        "data": null
+      }
+    },
+    {
+      "scenario": "Invalid usecase_id format",
+      "request": {
+        "usecase_id": "not_a_number",
+        "series": "covid_total_census",
+        "condition_one": "NCAL"
+      },
+      "response": {
+        "success": false,
+        "method": "get_forecast",
+        "status_code": 400,
+        "error": "usecase_id must be an integer",
+        "error_type": null,
+        "data": null
+      }
+    },
+    {
+      "scenario": "Usecase not found",
+      "request": {
+        "usecase_name": "NonExistentUsecase",
+        "series": "covid_total_census",
+        "condition_one": "NCAL"
+      },
+      "response": {
+        "success": false,
+        "method": "get_forecast",
+        "status_code": 404,
+        "error": "No usecase found for 'NonExistentUsecase'.",
+        "error_type": null,
+        "data": null
+      }
+    },
+    {
+      "scenario": "Embedding service busy",
+      "request": {
+        "usecase_name": "Hospital Census",
+        "series": "covid_total_census",
+        "condition_one": "NCAL"
+      },
+      "response": {
+        "success": false,
+        "method": "get_forecast",
+        "status_code": 404,
+        "error": "Server is busy processing embeddings. Please try again later.",
+        "error_type": null,
+        "data": null
+      }
+    },
+    {
+      "scenario": "Internal server error",
+      "request": {
+        "usecase_id": 5,
+        "series": "covid_total_census",
+        "condition_one": "NCAL"
+      },
+      "response": {
+        "success": false,
+        "method": "get_forecast",
+        "status_code": 500,
+        "error": "Database connection timeout",
+        "error_type": "OperationalError",
+        "data": null
+      }
+    },
+    {
+      "scenario": "Empty forecast - no data for filter combination",
+      "request": {
+        "usecase_id": 5,
+        "series": "covid_total_census",
+        "condition_one": "NCAL",
+        "condition_two": "facility_1",
+        "condition_three": "unit_z"
+      },
+      "response": {
+        "success": true,
+        "method": "get_forecast",
+        "status_code": 200,
+        "data": {
+          "resolved": true,
+          "usecase": {
+            "id": 5,
+            "name": "Hospital Census Forecasting",
+            "usecase_type": "Multi_Model_Forecasting"
+          },
+          "info": {
+            "condition_type": "three_conditions",
+            "required_filters": ["series", "condition_one", "condition_two"]
+          },
+          "filters_applied": {
+            "series": "covid_total_census",
+            "condition_one": "NCAL",
+            "condition_two": "facility_1",
+            "condition_three": "unit_z",
+            "prediction_period": null
+          },
+          "last_actual_update": "2026-04-07",
+          "forecast": []
+        }
+      }
+    },
+    {
+      "scenario": "With prediction period filtering",
+      "request": {
+        "usecase_id": 5,
+        "series": "covid_icu_census",
+        "condition_one": "SCAL",
+        "condition_two": "facility_4",
+        "prediction_period": 14
+      },
+      "response": {
+        "success": true,
+        "method": "get_forecast",
+        "status_code": 200,
+        "data": {
+          "resolved": true,
+          "usecase": {
+            "id": 5,
+            "name": "Hospital Census Forecasting",
+            "usecase_type": "Multi_Model_Forecasting"
+          },
+          "info": {
+            "condition_type": "three_conditions",
+            "required_filters": ["series", "condition_one"]
+          },
+          "filters_applied": {
+            "series": "covid_icu_census",
+            "condition_one": "SCAL",
+            "condition_two": "facility_4",
+            "condition_three": null,
+            "prediction_period": 14
+          },
+          "last_actual_update": "2026-04-07",
+          "forecast": [
+            {
+              "Forecast Date": "2026-03-24",
+              "Forecast Value": 45.2,
+              "value_type": "covid_icu_census",
+              "rgn_cd": "SCAL",
+              "fac_id_cd": "facility_4"
+            },
+            {
+              "Forecast Date": "2026-03-25",
+              "Forecast Value": 46.8,
+              "value_type": "covid_icu_census",
+              "rgn_cd": "SCAL",
+              "fac_id_cd": "facility_4"
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "response_patterns": {
+    "success_with_data": {
+      "http_status": 200,
+      "success": true,
+      "has_forecast_array": true,
+      "forecast_array_length": ">= 0"
+    },
+    "success_with_candidates": {
+      "http_status": 200,
+      "success": true,
+      "has_candidates_or_semantic_candidates": true,
+      "requires_user_selection": true
+    },
+    "validation_error": {
+      "http_status": 400,
+      "success": false,
+      "error_present": true,
+      "data_may_contain_details": true
+    },
+    "not_found": {
+      "http_status": 404,
+      "success": false,
+      "error_present": true,
+      "data": null
+    },
+    "server_error": {
+      "http_status": 500,
+      "success": false,
+      "error_present": true,
+      "error_type_present": true,
+      "data": null
+    }
+  }
+}

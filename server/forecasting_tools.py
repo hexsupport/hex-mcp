@@ -10,114 +10,24 @@ from config import mcp
 from clients import get_mm_client
 from validators import validate_forecast_payload
 from utils import safe_response_to_dict, create_error_response
+from response_handlers import dispatch_response
 import asyncio
-import json
 
 
 def format_api_response(raw: dict) -> dict:
     """Adapt any forecast API response into an LLM-friendly structure.
 
-    Detects the shape of *raw* and picks the right formatting path:
+    Delegates to the response_handlers module which classifies the response
+    into one of 13 documented scenarios and applies the appropriate formatter.
+    Every response includes a 'status' field and '_llm_instructions' for the LLM.
 
-    1. **success=false with available_options** → error with corrective hints
-    2. **success=false (generic)** → plain error
-    3. **forecast list present** → structured forecast data
-    4. **anything else** → pass-through unchanged
+    Args:
+        raw: The raw API response (may be dict, string, or other type)
+
+    Returns:
+        dict: Formatted response with status, contextual fields, and _llm_instructions
     """
-    # ── Unwrap: raw may already be a dict, or may need JSON parsing ──
-    if isinstance(raw, str):
-        try:
-            raw = json.loads(raw)
-        except (json.JSONDecodeError, TypeError):
-            return {"status": "error", "error": raw}
-
-    if not isinstance(raw, dict):
-        return {"status": "error", "error": str(raw)}
-
-    data = raw.get("data") or {}
-
-    # ── Path 1 & 2: API signalled failure ──
-    if raw.get("success") is False:
-        error_msg = data.get("message") or raw.get("error", "Unknown error")
-        invalid_filters = data.get("invalid_filters") or {}
-        available_options = data.get("available_options") or {}
-
-        result = {
-            "status": "error",
-            "status_code": raw.get("status_code"),
-            "error": error_msg,
-            "invalid_filters": invalid_filters,
-        }
-
-        if available_options:
-            result["available_options"] = {
-                "series": available_options.get("series", []),
-                "condition_one": available_options.get("condition_one", []),
-                "conditions": available_options.get("conditions", {}),
-            }
-            result["_llm_instructions"] = {
-                "role": "You are helping a business user fix an invalid forecast request.",
-                "rules": [
-                    "The API rejected the request because the filter combination is invalid.",
-                    "Show the user which filters were invalid using `invalid_filters`.",
-                    "Present the `available_options` so the user knows what valid values they can choose from.",
-                    "List `series` options, `condition_one` options, and the nested `conditions` mapping (condition_one -> condition_two values).",
-                    "Be concise and friendly. Do not echo raw JSON — present the options as a readable list.",
-                    "Suggest a corrected request based on the available options.",
-                ],
-            }
-        else:
-            result["_llm_instructions"] = {
-                "role": "You are reporting a forecast API error to a business user.",
-                "rules": [
-                    "Tell the user the request failed and show the error message.",
-                    "If invalid_filters are present, explain which filters were wrong.",
-                    "Be concise and friendly. Do not echo raw JSON.",
-                ],
-            }
-
-        return result
-
-    # ── Path 3: successful response with forecast data ──
-    raw_points = data.get("forecast") or raw.get("forecast")
-    if raw_points:
-        usecase_info = data.get("usecase") or raw.get("usecase") or {}
-        filters = data.get("filters_applied") or raw.get("filters_applied") or {}
-        info = data.get("info") or raw.get("info") or {}
-        total_points = len(raw_points)
-
-        return {
-            "status": "success",
-            "message": "Successfully retrieved forecast",
-            "data_available": total_points > 0,
-            "resolved": data.get("resolved") if data else raw.get("resolved"),
-            "usecase": {
-                "id":   usecase_info.get("id"),
-                "name": usecase_info.get("name"),
-                "type": usecase_info.get("usecase_type"),
-            },
-            "condition_info": {
-                "condition_type": info.get("condition_type"),
-                "required_filters": info.get("required_filters"),
-            },
-            "filters_applied": filters,
-            "last_actual_update": data.get("last_actual_update") or raw.get("last_actual_update"),
-            "forecast": raw_points,
-            "_llm_instructions": {
-                "role": "You are presenting forecast data to a non-technical business user.",
-                "rules": [
-                    "The `forecast` list contains forecast entries.",
-                    "Each entry has keys: 'Forecast Date', 'Forecast Value', 'value_lb', 'value_ub', 'value_type', 'rgn_cd', 'fac_id_cd', 'model_type', 'model_id'.",
-                    "Describe 'value_lb' and 'value_ub' as the confidence interval lower and upper bounds.",
-                    "Mention last_actual_update to indicate how fresh the underlying data is.",
-                    "Round displayed numbers to 2 decimal places.",
-                    "Present as a concise narrative paragraph; do not echo raw JSON or field names to the user.",
-                ],
-            },
-        }
-
-    # ── Path 4: unrecognised shape → pass through unchanged ──
-    return raw
+    return dispatch_response(raw)
 
 
 @mcp.tool(
