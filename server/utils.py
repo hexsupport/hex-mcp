@@ -6,14 +6,38 @@ validation, and error management.
 """
 
 from typing import Any, Dict, Union
+import json
+import logging
+import re
 import httpx
+
+logger = logging.getLogger(__name__)
+
+# Simple email format check (local@domain.tld)
+_EMAIL_RE = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
+
+
+def validate_file_path(path: str) -> bool:
+    """Return False if the path contains directory traversal sequences."""
+    if not path:
+        return True
+    normalized = path.replace("\\", "/")
+    return ".." not in normalized.split("/")
+
+
+def validate_emails(emails: list) -> list:
+    """Return list of entries in *emails* that are not valid email addresses."""
+    if not emails:
+        return []
+    return [e for e in emails if not isinstance(e, str) or not _EMAIL_RE.match(e.strip())]
+
 
 def safe_response_to_dict(response: Union[Dict, httpx.Response, Any]) -> Dict:
     """Safely convert various response types to dictionary format.
-    
+
     Args:
         response: Response object that could be a dict, httpx.Response, or other type.
-        
+
     Returns:
         dict: Response data in dictionary format.
     """
@@ -23,10 +47,12 @@ def safe_response_to_dict(response: Union[Dict, httpx.Response, Any]) -> Dict:
     if hasattr(response, 'json'):
         try:
             return response.json()
-        except Exception:
+        except (ValueError, json.JSONDecodeError) as exc:
+            logger.debug("Failed to parse response as JSON: %s", exc)
             return {"data": str(response)}
     elif hasattr(response, '__dict__'):
-        return vars(response)
+        # Filter private/dunder attributes to avoid leaking internal state
+        return {k: v for k, v in vars(response).items() if not k.startswith('_')}
     else:
         return {"data": str(response)}
 

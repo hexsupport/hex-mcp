@@ -8,7 +8,7 @@ machine learning models in the ModelManager service.
 from fastmcp import Context
 from config import mcp
 from clients import get_mm_client
-from utils import safe_response_to_dict, create_error_response
+from utils import safe_response_to_dict, create_error_response, validate_file_path
 import asyncio
 
 @mcp.tool(
@@ -57,13 +57,25 @@ async def add_model(
     if not description or not description.strip():
         validation_errors.append("Model description is required")
     
+    # Validate file paths against traversal sequences
+    path_params = {
+        "training_dataset": training_dataset,
+        "test_dataset": test_dataset,
+        "pred_dataset": pred_dataset,
+        "actual_dataset": actual_dataset,
+        "model_file_path": model_file_path,
+    }
+    for param_name, param_value in path_params.items():
+        if param_value is not None and not validate_file_path(param_value):
+            validation_errors.append(f"Invalid path for '{param_name}': path traversal sequences are not allowed")
+
     if validation_errors:
         await ctx.error(f"Validation failed: {'; '.join(validation_errors)}")
         return create_error_response(
             message=f"Validation failed: {'; '.join(validation_errors)}",
             error_type="ValidationError"
         )
-    
+
     # Build model data dict
     model_data = {
         "name": name,
@@ -110,14 +122,14 @@ async def add_model(
     except ValueError as e:
         await ctx.error(f"Validation error: {str(e)}")
         return create_error_response(
-            message=f"Validation error: {str(e)}",
-            error_type="ValueError"
+            message="A validation error occurred. Please check your input.",
+            error_type="ValidationError"
         )
     except Exception as e:
         await ctx.error(f"Failed to upload model: {str(e)}")
         return create_error_response(
-            message=f"Failed to upload model: {str(e)}",
-            error_type=type(e).__name__
+            message="An internal error occurred while uploading the model.",
+            error_type="InternalError"
         )
 
 @mcp.tool(
@@ -191,6 +203,20 @@ async def update_model(
         if value is not None:
             model_data[field] = value
     
+    # Validate file paths against traversal sequences
+    path_fields = ["training_dataset", "test_dataset", "pred_dataset", "actual_dataset", "model_file_path"]
+    path_errors = [
+        f"Invalid path for '{f}': path traversal sequences are not allowed"
+        for f in path_fields
+        if model_data.get(f) is not None and not validate_file_path(model_data[f])
+    ]
+    if path_errors:
+        await ctx.error(f"Validation failed: {'; '.join(path_errors)}")
+        return create_error_response(
+            message=f"Validation failed: {'; '.join(path_errors)}",
+            error_type="ValidationError"
+        )
+
     # Check if there's anything to update
     if not model_data:
         await ctx.error("No update data provided")
@@ -198,7 +224,7 @@ async def update_model(
             message="At least one field must be provided for update",
             error_type="ValidationError"
         )
-    
+
     await ctx.info(f"Updating model: {model_id}")
     await ctx.report_progress(progress=20, total=100)
     
@@ -222,14 +248,14 @@ async def update_model(
     except ValueError as e:
         await ctx.error(f"Validation error: {str(e)}")
         return create_error_response(
-            message=f"Validation error: {str(e)}",
-            error_type="ValueError"
+            message="A validation error occurred. Please check your input.",
+            error_type="ValidationError"
         )
     except Exception as e:
         await ctx.error(f"Failed to update model: {str(e)}")
         return create_error_response(
-            message=f"Failed to update model: {str(e)}",
-            error_type=type(e).__name__
+            message="An internal error occurred while updating the model.",
+            error_type="InternalError"
         )
 
 @mcp.tool(
@@ -275,14 +301,14 @@ async def delete_model(ctx: Context, model_id: str) -> dict:
     except ValueError as e:
         await ctx.error(f"Validation error: {str(e)}")
         return create_error_response(
-            message=f"Validation error: {str(e)}",
-            error_type="ValueError"
+            message="A validation error occurred. Please check your input.",
+            error_type="ValidationError"
         )
     except Exception as e:
         await ctx.error(f"Failed to delete model: {str(e)}")
         return create_error_response(
-            message=f"Failed to delete model: {str(e)}",
-            error_type=type(e).__name__
+            message="An internal error occurred while deleting the model.",
+            error_type="InternalError"
         )
 
 @mcp.tool(
@@ -329,12 +355,12 @@ async def get_latest_metrics(ctx: Context, model_id: str, metric_type: str = Non
     except ValueError as e:
         await ctx.error(f"Validation error: {str(e)}")
         return create_error_response(
-            message=f"Validation error: {str(e)}",
-            error_type="ValueError"
+            message="A validation error occurred. Please check your input.",
+            error_type="ValidationError"
         )
     except Exception as e:
         await ctx.error(f"Failed to retrieve metrics: {str(e)}")
         return create_error_response(
-            message=f"Failed to retrieve metrics: {str(e)}",
-            error_type=type(e).__name__
+            message="An internal error occurred while retrieving metrics.",
+            error_type="InternalError"
         )

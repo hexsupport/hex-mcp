@@ -33,9 +33,9 @@ from clients import server_lifespan
 
 # Import all tool modules to register their MCP tools
 # This automatically registers all @mcp.tool decorated functions
-import model_tools
-import usecase_tools
-import modelcard_tools
+# import model_tools
+# import usecase_tools
+# import modelcard_tools
 import forecasting_tools
 
 # The server is now ready to run with all tools registered

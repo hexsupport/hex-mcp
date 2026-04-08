@@ -81,9 +81,9 @@ async def get_modelcard_data(
 
         if hasattr(modelcard_resp, 'status_code') and modelcard_resp.status_code >= 400:
             error_msg = getattr(modelcard_resp, 'text', str(modelcard_resp))
-            await ctx.error(f"API error: {error_msg}")
+            await ctx.error(f"API error (status {modelcard_resp.status_code}): {error_msg}")
             return create_error_response(
-                message=f"API error: {error_msg}",
+                message=f"The upstream API returned an error (HTTP {modelcard_resp.status_code}).",
                 error_type="APIError",
                 status_code=modelcard_resp.status_code
             )
@@ -100,14 +100,14 @@ async def get_modelcard_data(
     except ValueError as e:
         await ctx.error(f"Validation error: {str(e)}")
         return create_error_response(
-            message=f"Validation error: {str(e)}",
-            error_type="ValueError"
+            message="A validation error occurred. Please check your input.",
+            error_type="ValidationError"
         )
     except Exception as e:
         await ctx.error(f"Failed to retrieve modelcard data: {str(e)}")
         return create_error_response(
-            message=f"Failed to retrieve modelcard data: {str(e)}",
-            error_type=type(e).__name__
+            message="An internal error occurred while retrieving modelcard data.",
+            error_type="InternalError"
         )
 
 @mcp.tool(
@@ -181,9 +181,9 @@ async def create_modelcard(
 
         if hasattr(resp, 'status_code') and resp.status_code >= 400:
             error_msg = getattr(resp, 'text', str(resp))
-            await ctx.error(f"API error: {error_msg}")
+            await ctx.error(f"API error (status {resp.status_code}): {error_msg}")
             return create_error_response(
-                message=f"API error: {error_msg}",
+                message=f"The upstream API returned an error (HTTP {resp.status_code}).",
                 error_type="APIError",
                 status_code=resp.status_code
             )
@@ -209,14 +209,14 @@ async def create_modelcard(
     except ValueError as e:
         await ctx.error(f"Validation error: {str(e)}")
         return create_error_response(
-            message=f"Validation error: {str(e)}",
-            error_type="ValueError"
+            message="A validation error occurred. Please check your input.",
+            error_type="ValidationError"
         )
     except Exception as e:
         await ctx.error(f"Failed to create modelcard: {str(e)}")
         return create_error_response(
-            message=f"Failed to create modelcard: {str(e)}",
-            error_type=type(e).__name__
+            message="An internal error occurred while creating the modelcard.",
+            error_type="InternalError"
         )
 
 # @mcp.tool(

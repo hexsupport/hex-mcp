@@ -1,145 +1,121 @@
 # HexagonML ModelManager MCP Server
 
-A modular, well-organized MCP server for interacting with the HexagonML ModelManager API with maximum tool discoverability and clean architecture.
+A modular MCP server for interacting with the HexagonML ModelManager API, with full tool discoverability and clean architecture.
 
-## 🏗️ Architecture
-
-The server has been refactored into a clean, modular architecture:
+## Architecture
 
 ```
 server/
-├── config.py              # Environment configuration and server setup
-├── clients.py              # ModelManager API client factory and context
-├── utils.py                # Common utilities (response handling, validation)
-├── validators.py           # Payload validation functions
-├── base.py                 # Base classes and common patterns
-├── model_tools.py          # Model management tools
-├── usecase_tools.py        # Usecase management tools
-├── modelcard_tools.py      # Model card management tools
-├── forecasting_tools.py    # Forecasting tools
-├── main.py                 # Main entry point
-└── server_simple.py        # FastMCP CLI entry point
+├── config.py                  # Environment configuration and server setup
+├── clients.py                 # ModelManager API client factory and context
+├── utils.py                   # Common utilities (response handling, validation)
+├── validators.py              # Payload validation functions
+├── base.py                    # Base classes and common patterns
+├── model_tools.py             # Model management tools
+├── usecase_tools.py           # Usecase management tools
+├── modelcard_tools.py         # Model card management tools
+├── forecasting_tools.py       # Forecasting tools
+├── forecasting_prompts.py     # MCP prompt templates for forecast presentation
+├── main.py                    # Main entry point (standalone mode)
+└── server_simple.py           # FastMCP CLI entry point
 ```
 
-## 🚀 Features
+## Available Tools
 
-### **Maximum MCP Discoverability**
-- **Individual parameters** instead of dict parameters
-- **Auto-completion** support in MCP tool playgrounds
-- **Type safety** with explicit parameter types
-- **Clear documentation** for each parameter
+### Model Management
+| Tool | Description |
+|---|---|
+| `add_model` | Upload a new ML model |
+| `update_model` | Update model metadata or configuration |
+| `delete_model` | Permanently delete a model |
+| `get_latest_metrics` | Retrieve model performance metrics |
 
-### **Modular Design**
-- **Separation of concerns** - Each module has a single responsibility
-- **Reusable components** - Common patterns extracted into base classes
-- **Easy maintenance** - Clear structure makes updates simple
-- **Testable components** - Each module can be tested independently
+### Usecase Management
+| Tool | Description |
+|---|---|
+| `add_usecase` | Create a new usecase (supports Forecasting type) |
+| `update_usecase` | Update usecase configuration |
+| `delete_usecase` | Permanently delete a usecase |
+| `get_usecase_data` | List all usecases |
 
-### **Robust Error Handling**
-- **Standardized error responses** across all tools
-- **Progress reporting** with user feedback
-- **Validation** with helpful error messages
-- **Graceful degradation** when API calls fail
+### Model Cards
+| Tool | Description |
+|---|---|
+| `create_modelcard` | Generate a model card for a model |
+| `get_modelcard_data` | Retrieve model card data with optional filtering |
 
-## 📋 Available Tools
+### Forecasting
+| Tool | Description |
+|---|---|
+| `get_forecast` | Retrieve forecasts for a usecase |
 
-### **Model Management**
-- `add_model` - Create new ML models
-- `update_model` - Update existing models
-- `delete_model` - Delete models
-- `get_latest_metrics` - Retrieve model performance metrics
+### MCP Prompts
+| Prompt | Description |
+|---|---|
+| `forecast_presentation_guide` | Instructs the LLM how to narrate forecast results to users |
 
-### **Usecase Management**
-- `add_usecase` - Create new usecases (supports forecasting)
-- `update_usecase` - Update existing usecases
-- `delete_usecase` - Delete usecases
-- `get_usecase_data` - List all usecases
+## Configuration
 
-### **Model Cards**
-- `create_modelcard` - Create individual model cards
-- `create_modelcard_bulk` - Create bulk model cards
-- `get_modelcard_data` - Retrieve model card data
+Copy `.env.example` to `.env` and fill in your values:
 
-### **Forecasting**
-- `get_forecast` - Retrieve forecasts for usecases
-
-## 🔧 Configuration
-
-### Environment Variables
 ```bash
-SECRET_KEY=your_secret_key_here
-MM_API_BASE_URL=http://localhost:8000
-OUTPUT_DIR=/path/to/output/directory
-HOST=0.0.0.0
-PORT=9000
+cp .env.example .env
 ```
 
-### Setup
-1. Copy `.env.example` to `.env` (or create `.env`)
-2. Fill in your configuration values
-3. Run the server
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `SECRET_KEY` | Yes | — | API secret key for ModelManager authentication |
+| `MM_API_BASE_URL` | Yes | — | Base URL of the ModelManager API |
+| `OUTPUT_DIR` | Yes | — | Directory for generated output files |
+| `HOST` | No | `0.0.0.0` | Network interface the server listens on |
+| `PORT` | No | `9000` | Port the server listens on |
 
-## 🏃‍♂️ Usage
+> **Docker note:** `MM_API_BASE_URL=http://127.0.0.1:8000` will not resolve from inside a container. Use `http://host.docker.internal:8000` on Mac/Windows, or `http://172.17.0.1:8000` on Linux.
 
-### Start the Server
+## Running the Server
 
-#### Option 1: FastMCP CLI (Recommended)
+### Option 1: FastMCP CLI (recommended)
 ```bash
-fastmcp run server/server_simple.py --transport http --host 127.0.0.1 --port 8080
+fastmcp run server/server_simple.py --transport http --host 0.0.0.0 --port 9000
 ```
 
-#### Option 2: Standalone
+### Option 2: Standalone Python
 ```bash
 python server/main.py
 ```
 
-#### Option 3: Development Mode
+### Option 3: Development / Inspector
 ```bash
 fastmcp dev server/server_simple.py
 ```
 
-### Example Tool Usage
-```python
-# Create a new model
-add_model(
-    name="Fraud Detection Model",
-    description="Model for detecting fraudulent transactions",
-    project="123",
-    transformer_type="Classification",
-    training_dataset="/path/to/train.csv",
-    target_column="is_fraud"
-)
+### Option 4: Docker Compose
+```bash
+# Build and start
+docker compose up --build
 
-# Create a forecasting usecase
-add_usecase(
-    name="Sales Forecast",
-    usecase_type="Forecasting",
-    description="Forecast future sales",
-    forecasting_template="two_conditions",
-    notification_emails=["user@example.com"],
-    result_tab=True,
-    series_tab=True
-)
+# Run in background
+docker compose up --build -d
 
-# Get model metrics
-get_latest_metrics(
-    model_id="123",
-    metric_type="accuracy"
-)
-
-# Retrieve forecast
-get_forecast(
-    usecase_name="Sales Forecast",
-    series="sales_data",
-    prediction_period=30
-)
+# Stop
+docker compose down
 ```
 
-## 🔌 MCP Integration Configuration
+### Option 5: Docker (manual)
+```bash
+# Build
+docker build -t hex-mm-mcp:latest .
 
-### For IDEs (VSCode, Windsurf, Claude Desktop)
+# Run
+docker run -d --name hex-mm-mcp \
+  -p 9000:9000 \
+  --env-file .env \
+  hex-mm-mcp:latest
+```
 
-#### Local Configuration
+## MCP Client Configuration
+
+### Local (stdio / HTTP)
 ```json
 {
   "mcpServers": {
@@ -147,41 +123,32 @@ get_forecast(
       "command": "fastmcp",
       "args": [
         "run",
-        "hex-mm-mcp/server/server_simple.py",
-        "--transport",
-        "http",
-        "--host",
-        "127.0.0.1",
-        "--port",
-        "8080"
+        "/path/to/hex-mm-mcp/server/server_simple.py",
+        "--transport", "http",
+        "--host", "127.0.0.1",
+        "--port", "9000"
       ]
     }
   }
 }
 ```
 
-#### Docker Configuration
+### Docker
 ```json
 {
   "mcpServers": {
-    "hex-mm-mcp-docker": {
+    "hex-mm-mcp": {
       "command": "docker",
       "args": [
-        "run",
-        "--rm",
-        "-i",
-        "--network=host",
-        "-e",
-        "SECRET_KEY",
-        "-e",
-        "MM_API_BASE_URL",
-        "-e",
-        "OUTPUT_DIR",
-        "modelmanager-mcp:latest"
+        "run", "--rm", "-i", "--network=host",
+        "-e", "SECRET_KEY",
+        "-e", "MM_API_BASE_URL",
+        "-e", "OUTPUT_DIR",
+        "hex-mm-mcp:latest"
       ],
       "env": {
         "SECRET_KEY": "your-secret-key",
-        "MM_API_BASE_URL": "http://host-ip:8000",
+        "MM_API_BASE_URL": "http://host.docker.internal:8000",
         "OUTPUT_DIR": "/tmp/mm-output"
       }
     }
@@ -189,32 +156,45 @@ get_forecast(
 }
 ```
 
-### Docker Setup
+## LLM Presentation Guidance
 
-#### Build Image
-```bash
-docker build --platform=linux/amd64 -t modelmanager-mcp:latest .
+The `get_forecast` tool uses two complementary mechanisms to guide how the LLM presents forecast data to users.
+
+### Embedded `_llm_instructions`
+
+Every `get_forecast` response includes a `_llm_instructions` field. The LLM reads this automatically as part of the tool result and follows the rules when composing its reply — no client configuration needed.
+
+Key rules embedded in every response:
+- Lead with the summary (date range, value range min/max/avg)
+- Explain `lower_bound`/`upper_bound` as a confidence interval
+- Reference `last_actual_update` to indicate data freshness
+- Flag `resolved: false` as an unresolvable request
+- Avoid echoing raw JSON back to the user
+
+### MCP Prompt (`forecast_presentation_guide`)
+
+A named MCP prompt is also registered on the server. MCP-aware clients (Claude Desktop, MCP Inspector) can fetch it and inject it as a system prompt at the start of a conversation, priming the LLM for the whole session rather than per-call.
+
+To use it in a client that supports MCP prompts:
+```
+prompts/get  →  forecast_presentation_guide
 ```
 
-#### Run Container
-```bash
-docker run --platform=linux/amd64 -d --name mm-mcp \
-  -p 8080:8080 \
-  --env-file .env \
-  modelmanager-mcp:latest
-```
+| Mechanism | When it fires | Client support needed |
+|---|---|---|
+| `_llm_instructions` | Every `get_forecast` call | None — automatic |
+| `forecast_presentation_guide` | On explicit prompt request | MCP prompt-capable client |
 
-## 🧪 Development
+## Development
 
-### Adding New Tools
-1. Create a new module file (e.g., `new_tools.py`)
-2. Import `mcp` from `config`
-3. Use the `@mcp.tool` decorator
-4. Import the module in `server_simple.py` or `main.py`
+### Adding a New Tool
 
-### Code Structure Template
+1. Create a new module (e.g., `server/new_tools.py`)
+2. Import `mcp` from `config` and use the `@mcp.tool` decorator
+3. Import the module in `server/server_simple.py`
+
 ```python
-# new_tools.py
+# server/new_tools.py
 from fastmcp import Context
 from config import mcp
 from clients import get_mm_client
@@ -224,127 +204,63 @@ import asyncio
 @mcp.tool(
     name="new_tool",
     description="Description of the tool",
-    tags={"category", "tool"},
-    meta={"version": "1.0", "author": "HexagonML"}
+    tags={"category", "modelmanager"},
+    meta={"version": "1.0", "author": "HexagonML"},
 )
 async def new_tool(ctx: Context, required_param: str, optional_param: str = None) -> dict:
-    """Tool description.
-    
-    Args:
-        ctx: MCP server context.
-        required_param: Description of required parameter.
-        optional_param: Description of optional parameter.
-        
-    Returns:
-        dict: Response data.
-    """
-    # Validation
-    if not required_param:
+    """Tool docstring shown in MCP playgrounds."""
+    if not required_param or not required_param.strip():
         return create_error_response(
-            message="Required parameter is missing",
+            message="required_param is required",
             error_type="ValidationError"
         )
-    
-    # Progress reporting
+
     await ctx.info("Starting operation")
     await ctx.report_progress(progress=20, total=100)
-    
+
     try:
         client = get_mm_client(ctx, 'client_type')
         await ctx.report_progress(progress=40, total=100)
-        
+
         response = await asyncio.to_thread(client.api_method, required_param)
         await ctx.report_progress(progress=80, total=100)
-        
+
         result = safe_response_to_dict(response)
-        await ctx.info("Operation completed successfully")
+        await ctx.info("Operation completed")
         await ctx.report_progress(progress=100, total=100)
-        
         return result
-        
+
+    except ValueError as e:
+        await ctx.error(f"Validation error: {str(e)}")
+        return create_error_response(
+            message="A validation error occurred. Please check your input.",
+            error_type="ValidationError"
+        )
     except Exception as e:
         await ctx.error(f"Operation failed: {str(e)}")
         return create_error_response(
-            message=f"Operation failed: {str(e)}",
-            error_type=type(e).__name__
+            message="An internal error occurred. Please try again.",
+            error_type="InternalError"
         )
 ```
 
-## 🔧 Troubleshooting
+## Troubleshooting
 
-### Common Issues
-
-#### Port in Use
+**Port already in use**
 ```bash
-# Kill process using port 8080
-kill -9 $(lsof -t -i:8080)
-
-# Or use a different port
-fastmcp run server/server_simple.py --port 8081
+kill -9 $(lsof -t -i:9000)
+# or use a different port
+fastmcp run server/server_simple.py --port 9001
 ```
 
-#### Missing Environment Variables
-The server will exit with a clear message listing missing required variables:
-- `SECRET_KEY` - Required for API authentication
-- `MM_API_BASE_URL` - Required for API endpoint
-- `OUTPUT_DIR` - Required for file outputs
+**Missing environment variables**  
+The server exits at startup with a message listing which of `SECRET_KEY`, `MM_API_BASE_URL`, and `OUTPUT_DIR` are missing.
 
-#### Connection Issues
-- Verify ModelManager API is running at `MM_API_BASE_URL`
-- Check network connectivity between MCP server and ModelManager
-- Ensure SECRET_KEY is valid and has proper permissions
+**Connection refused / API errors**  
+- Confirm the ModelManager API is reachable at `MM_API_BASE_URL`
+- When running in Docker, see the Docker note in the Configuration section above
+- Verify `SECRET_KEY` is correct and has the necessary permissions
 
-## 🔄 Migration from Legacy
+## License
 
-The legacy monolithic `mm_mcp_server.py` has been replaced with the modular architecture:
-
-### What Changed
-1. **No breaking changes** - All tools work the same way
-2. **Better discoverability** - Tools now use individual parameters instead of dicts
-3. **Improved error handling** - More consistent and helpful error messages
-4. **Progress reporting** - Users get feedback on long-running operations
-5. **Clean architecture** - Modular, maintainable codebase
-
-### Migration Steps
-1. Update your MCP configuration to use `server/server_simple.py`
-2. Update environment variables if needed
-3. Test your existing tool calls - they should work without changes
-
-## 📝 Benefits
-
-### **For Developers**
-- **Clean code** - Easy to read and maintain
-- **Modular testing** - Test each component independently
-- **Reusable patterns** - Base classes reduce duplication
-- **Type safety** - Better IDE support and fewer bugs
-
-### **For Users**
-- **Better discoverability** - See all available parameters in tool playgrounds
-- **Auto-completion** - IDEs suggest parameter names and types
-- **Clear errors** - Helpful validation messages
-- **Progress feedback** - Know when operations are running
-
-### **For Operations**
-- **Easier debugging** - Clear separation of concerns
-- **Better monitoring** - Standardized logging and error reporting
-- **Scalable architecture** - Easy to add new features
-- **Maintainable codebase** - Reduced technical debt
-
-## 📚 Additional Resources
-
-- **FastMCP Documentation**: https://gofastmcp.com
-- **ModelManager API**: Available at your `MM_API_BASE_URL`
-- **Docker Hub**: ModelManager container images
-- **GitHub Project**: https://github.com/hexagonml/modelmanager-mcp
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Add your new tools following the modular pattern
-4. Include tests for new functionality
-5. Submit a pull request
-
-## 📄 License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
+MIT License — see the LICENSE file for details.

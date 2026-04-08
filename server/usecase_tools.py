@@ -8,7 +8,7 @@ usecases (projects) in the ModelManager service, including forecasting usecases.
 from fastmcp import Context
 from config import mcp
 from clients import get_mm_client
-from utils import safe_response_to_dict, create_error_response, normalize_tool_response
+from utils import safe_response_to_dict, create_error_response, normalize_tool_response, validate_emails
 import asyncio
 
 @mcp.tool(
@@ -85,6 +85,16 @@ async def add_usecase(
         "applications": applications or ""
     }
     
+    # Validate notification emails
+    if notification_emails:
+        invalid_emails = validate_emails(notification_emails)
+        if invalid_emails:
+            await ctx.error(f"Invalid email addresses provided: {invalid_emails}")
+            return create_error_response(
+                message=f"Invalid email address(es): {', '.join(str(e) for e in invalid_emails)}",
+                error_type="ValidationError"
+            )
+
     # Build forecasting_fields dict if any forecasting parameters are provided
     forecasting_fields = {}
     if forecasting_performance_data_selection:
@@ -135,14 +145,14 @@ async def add_usecase(
     except ValueError as e:
         await ctx.error(f"Validation error: {str(e)}")
         return create_error_response(
-            message=f"Validation error: {str(e)}",
-            error_type="ValueError"
+            message="A validation error occurred. Please check your input.",
+            error_type="ValidationError"
         )
     except Exception as e:
         await ctx.error(f"Failed to add usecase: {str(e)}")
         return create_error_response(
-            message=f"Failed to add usecase: {str(e)}",
-            error_type=type(e).__name__
+            message="An internal error occurred while creating the usecase.",
+            error_type="InternalError"
         )
 
 @mcp.tool(
@@ -229,6 +239,16 @@ async def update_usecase(
         if value is not None:
             usecase_info[field] = value
     
+    # Validate notification emails
+    if notification_emails is not None:
+        invalid_emails = validate_emails(notification_emails)
+        if invalid_emails:
+            await ctx.error(f"Invalid email addresses provided: {invalid_emails}")
+            return create_error_response(
+                message=f"Invalid email address(es): {', '.join(str(e) for e in invalid_emails)}",
+                error_type="ValidationError"
+            )
+
     # Add forecasting_fields if any forecasting parameters are provided
     forecasting_fields = {}
     if forecasting_performance_data_selection is not None:
@@ -289,14 +309,14 @@ async def update_usecase(
     except ValueError as e:
         await ctx.error(f"Validation error: {str(e)}")
         return create_error_response(
-            message=f"Validation error: {str(e)}",
-            error_type="ValueError"
+            message="A validation error occurred. Please check your input.",
+            error_type="ValidationError"
         )
     except Exception as e:
         await ctx.error(f"Failed to update usecase: {str(e)}")
         return create_error_response(
-            message=f"Failed to update usecase: {str(e)}",
-            error_type=type(e).__name__
+            message="An internal error occurred while updating the usecase.",
+            error_type="InternalError"
         )
 
 @mcp.tool(
@@ -342,14 +362,14 @@ async def delete_usecase(ctx: Context, usecase_id: str) -> dict:
     except ValueError as e:
         await ctx.error(f"Validation error: {str(e)}")
         return create_error_response(
-            message=f"Validation error: {str(e)}",
-            error_type="ValueError"
+            message="A validation error occurred. Please check your input.",
+            error_type="ValidationError"
         )
     except Exception as e:
         await ctx.error(f"Failed to delete usecase: {str(e)}")
         return create_error_response(
-            message=f"Failed to delete usecase: {str(e)}",
-            error_type=type(e).__name__
+            message="An internal error occurred while deleting the usecase.",
+            error_type="InternalError"
         )
 
 @mcp.tool(
@@ -389,12 +409,12 @@ async def get_usecase_data(ctx: Context) -> dict:
     except ValueError as e:
         await ctx.error(f"Validation error: {str(e)}")
         return create_error_response(
-            message=f"Validation error: {str(e)}",
-            error_type="ValueError"
+            message="A validation error occurred. Please check your input.",
+            error_type="ValidationError"
         )
     except Exception as e:
         await ctx.error(f"Failed to retrieve usecases: {str(e)}")
         return create_error_response(
-            message=f"Failed to retrieve usecases: {str(e)}",
-            error_type=type(e).__name__
+            message="An internal error occurred while retrieving usecases.",
+            error_type="InternalError"
         )

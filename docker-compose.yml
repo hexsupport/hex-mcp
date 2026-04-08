@@ -1,0 +1,30 @@
+services:
+  hex-mm-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PORT: ${PORT:-9000}
+    image: hex-mm-mcp:latest
+    container_name: hex-mm-mcp
+    ports:
+      - "${PORT:-9000}:${PORT:-9000}"
+    environment:
+      SECRET_KEY: ${SECRET_KEY}
+      MM_API_BASE_URL: ${MM_API_BASE_URL}
+      OUTPUT_DIR: ${OUTPUT_DIR:-/tmp/mm-output}
+      HOST: "0.0.0.0"
+      PORT: ${PORT:-9000}
+    volumes:
+      # Persist generated output files across container restarts
+      - mm-output:${OUTPUT_DIR:-/tmp/mm-output}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:${PORT:-9000}/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+volumes:
+  mm-output:

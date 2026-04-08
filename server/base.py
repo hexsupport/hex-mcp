@@ -55,14 +55,14 @@ class BaseMCPTool(ABC):
         except ValueError as e:
             await ctx.error(f"Validation error: {str(e)}")
             return create_error_response(
-                message=f"Validation error: {str(e)}",
-                error_type="ValueError"
+                message="A validation error occurred. Please check your input.",
+                error_type="ValidationError"
             )
         except Exception as e:
             await ctx.error(f"Operation failed: {str(e)}")
             return create_error_response(
-                message=f"Operation failed: {str(e)}",
-                error_type=type(e).__name__
+                message="An internal error occurred. Please try again.",
+                error_type="InternalError"
             )
 
 class CRUDTool(BaseMCPTool):
