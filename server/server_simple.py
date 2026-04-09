@@ -11,9 +11,9 @@ from clients import server_lifespan
 # Import all tool modules to register their MCP tools
 # import usecase_tools
 # import model_tools
-# import modelcard_tools
+import modelcard_tools
 import forecasting_tools
-import forecasting_prompts  # noqa: F401 — side-effect import; registers @mcp.prompt
-import health  # noqa: F401 — side-effect import; registers /health endpoint
+import forecasting_prompts 
+import health
 
 # The server is ready - fastmcp will handle the rest

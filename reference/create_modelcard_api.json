@@ -1,0 +1,219 @@
+{
+  "endpoint": "create_modelcard",
+  "view": "MManagerModelcardApiView",
+  "method": "POST",
+  "usecase_category": "Forecasting",
+
+  "input": {
+    "description": "Request body for creating a forecasting modelcard",
+    "fields": {
+      "usecase_id": {
+        "type": "integer",
+        "required": "one of usecase_id or usecase_name is required",
+        "description": "Primary key of the usecase/project. Takes priority over usecase_name if both are provided."
+      },
+      "usecase_name": {
+        "type": "string",
+        "required": "one of usecase_id or usecase_name is required",
+        "description": "Name of the usecase. Used for fuzzy/semantic lookup when usecase_id is not provided."
+      },
+      "series": {
+        "type": "string",
+        "required": true,
+        "description": "The forecasting series/value_type dimension (e.g. 'value_type_A')."
+      },
+      "condition_one": {
+        "type": "string",
+        "required": true,
+        "description": "Region filter (rgn_cd). Maps to conditionOne / region in the forecasting data."
+      },
+      "condition_two": {
+        "type": "string",
+        "required": false,
+        "description": "Facility filter (fac_id_cd). Maps to conditionTwo / facility."
+      },
+      "condition_three": {
+        "type": "string",
+        "required": false,
+        "description": "Unit filter (unit_id). Maps to conditionThree / unit."
+      },
+      "user_id": {
+        "type": "integer",
+        "required": false,
+        "description": "ID of the user triggering the request. Defaults to the authenticated request user's ID."
+      }
+    },
+    "example": {
+      "usecase_id": 123,
+      "series": "value_type_A",
+      "condition_one": "REGION_01",
+      "condition_two": "FACILITY_02",
+      "condition_three": "UNIT_03",
+      "user_id": 42
+    }
+  },
+
+  "outputs": [
+    {
+      "case": "Success — Modelcard created",
+      "http_status": 200,
+      "trigger": "Forecasting modelcard and PDF generated successfully for the given series/condition combination.",
+      "response": {
+        "success": true,
+        "method": "create_modelcard",
+        "status_code": 200,
+        "data": {
+          "usecase": "My Forecasting Usecase",
+          "usecase_id": 123,
+          "usecase_name": "My Forecasting Usecase",
+          "pdf_url": "https://host/media/path/to/modelcard.pdf",
+          "modelcard_pdf_id": 45,
+          "modelcard_id": 67,
+          "created_at": "2026-04-09T10:00:00Z",
+          "series": "value_type_A",
+          "condition_1": "REGION_01",
+          "condition_2": "FACILITY_02",
+          "condition_3": "UNIT_03",
+          "data": {
+            "usecase_id": 123,
+            "usecase_name": "My Forecasting Usecase",
+            "uue_color": "green",
+            "uue_text": "Unexplained Unusual Event status explanation text",
+            "fe_color": "yellow",
+            "fe_text": "Feature Engineering status explanation text",
+            "sr_color": "red",
+            "sr_text": "Stability & Robustness status explanation text",
+            "overall_risk": "Low",
+            "overall_risk_text": "Overall model risk explanation text",
+            "_note": "Additional keys from forecasting_pm.metrics JSON are merged in here dynamically"
+          }
+        }
+      }
+    },
+    {
+      "case": "Success — Ambiguous usecase name (multiple candidates)",
+      "http_status": 200,
+      "trigger": "usecase_name provided but resolves to multiple exact-match usecases.",
+      "response": {
+        "success": true,
+        "method": "create_modelcard",
+        "status_code": 200,
+        "data": {
+          "msg": "Multiple usecases match the provided usecase_name. Please select one and retry with usecase_id.",
+          "usecase_name": "My Usecase",
+          "candidates": [
+            {"id": 10, "name": "My Usecase Alpha"},
+            {"id": 11, "name": "My Usecase Beta"}
+          ],
+          "semantic_candidates": []
+        }
+      }
+    },
+    {
+      "case": "Failure — Embedding service busy",
+      "http_status": 503,
+      "trigger": "Semantic usecase name resolution service is temporarily unavailable.",
+      "response": {
+        "success": false,
+        "method": "create_modelcard",
+        "status_code": 503,
+        "error": "Usecase resolution service is busy",
+        "error_type": null,
+        "data": null
+      }
+    },
+    {
+      "case": "Failure — Invalid usecase identification",
+      "http_status": 400,
+      "trigger": "Neither usecase_id nor usecase_name provided, or usecase_id is not an integer, or name resolution returned no result.",
+      "response": {
+        "success": false,
+        "method": "create_modelcard",
+        "status_code": 400,
+        "error": "Invalid usecase identification",
+        "error_type": null,
+        "data": null
+      }
+    },
+    {
+      "case": "Failure — Usecase not found",
+      "http_status": 404,
+      "trigger": "usecase_id resolved but no Project record exists in the database with that ID.",
+      "response": {
+        "success": false,
+        "method": "create_modelcard",
+        "status_code": 404,
+        "error": "Usecase not found",
+        "error_type": null,
+        "data": null
+      }
+    },
+    {
+      "case": "Failure — No data for series/condition combination",
+      "http_status": 500,
+      "trigger": "The given series + condition_one (+ optional condition_two/three) combination does not exist in the forecasting dataset.",
+      "response": {
+        "success": false,
+        "method": "create_modelcard",
+        "status_code": 500,
+        "error": "ModelCard creation failed",
+        "error_type": null,
+        "data": {
+          "error": "No data available for this combination. {'series': 'value_type_A', 'conditionOne': 'REGION_01', 'conditionTwo': 'FACILITY_02'}",
+          "method": "get_forecasting_modelcard",
+          "success": false
+        }
+      }
+    },
+    {
+      "case": "Failure — ModelCard creation failed (general)",
+      "http_status": 500,
+      "trigger": "An unexpected exception occurred during forecasting modelcard creation (e.g. DB error, metric computation error).",
+      "response": {
+        "success": false,
+        "method": "create_modelcard",
+        "status_code": 500,
+        "error": "ModelCard creation failed",
+        "error_type": null,
+        "data": {
+          "method": "get_forecasting_modelcard",
+          "success": false
+        }
+      }
+    },
+    {
+      "case": "Failure — Modelcard PDF not created",
+      "http_status": 500,
+      "trigger": "ModelCard object was created but PDF generation returned None (e.g. HTML rendering or PDF generation failure).",
+      "response": {
+        "success": false,
+        "method": "create_modelcard",
+        "status_code": 500,
+        "error": "Modelcard PDF not created",
+        "error_type": null,
+        "data": null
+      }
+    },
+    {
+      "case": "Failure — Modelcard PDF file missing",
+      "http_status": 500,
+      "trigger": "ModelCardPDF record exists but its file field is empty or inaccessible (e.g. storage backend error).",
+      "response": {
+        "success": false,
+        "method": "create_modelcard",
+        "status_code": 500,
+        "error": "Modelcard PDF file is missing",
+        "error_type": null,
+        "data": {
+          "error": "Modelcard PDF file is missing"
+        }
+      }
+    }
+  ],
+
+  "notes": [
+    "The nested 'data' key inside the success response 'data' object contains UUE/FE/SR status colors and texts, overall risk, and any additional metrics from forecasting_pm.metrics. It may be null if metric parsing fails — the PDF is still returned.",
+    "A modelcard is reused within the same calendar day for an identical series/condition combination. Only the forecasting_pm reference is updated on reuse.",
+    "condition_1/condition_2/condition_3 in the success response are populated from the persisted ModelCardPDF record's fields, sourced from forecasting_pm."
+  ]
+}

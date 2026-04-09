@@ -4,3 +4,11 @@ venv
 Dockerfile
 __pycache__
 *.bak
+*.log
+references/
+.git
+.idea
+.vscode
+.claude
+.code-review-graph
+.windsurfrules

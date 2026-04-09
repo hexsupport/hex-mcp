@@ -15,3 +15,5 @@ venv
 .env
 *.bak
 .claude/
+.mcp.json
+.windsurfrules
