@@ -9,6 +9,8 @@ services:
     container_name: hex-mm-mcp
     ports:
       - "${PORT:-9000}:${PORT:-9000}"
+    env_file:
+      - .env
     environment:
       SECRET_KEY: ${SECRET_KEY}
       MM_API_BASE_URL: ${MM_API_BASE_URL}
