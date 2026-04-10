@@ -32,7 +32,7 @@ async def add_model(
     target_column: str = None
 ) -> dict:
     """Upload a machine learning model to the ModelManager service.
-    
+
     Args:
         ctx: The MCP server context containing authentication and configuration.
         name: Name of the model (required).
@@ -46,7 +46,7 @@ async def add_model(
         actual_dataset: Path to actual/truth dataset file.
         model_file_path: Path to the model file.
         target_column: Target column name in the dataset.
-        
+
     Returns:
         dict: Response from the ModelManager service containing the created model details.
     """
@@ -56,7 +56,7 @@ async def add_model(
         validation_errors.append("Model name is required")
     if not description or not description.strip():
         validation_errors.append("Model description is required")
-    
+
     # Validate file paths against traversal sequences
     path_params = {
         "training_dataset": training_dataset,
@@ -81,7 +81,7 @@ async def add_model(
         "name": name,
         "description": description
     }
-    
+
     # Add optional fields if provided
     optional_fields = {
         "project": project,
@@ -94,31 +94,31 @@ async def add_model(
         "model_file_path": model_file_path,
         "target_column": target_column
     }
-    
+
     for field, value in optional_fields.items():
         if value is not None:
             model_data[field] = value
-    
+
     await ctx.info(f"Creating new model: {name}")
     await ctx.report_progress(progress=10, total=100)
-    
+
     try:
         model_client = get_mm_client(ctx, 'model')
         await ctx.report_progress(progress=30, total=100)
-        
+
         model_response = await asyncio.to_thread(model_client.post_model, model_data)
         await ctx.report_progress(progress=90, total=100)
-        
+
         response_dict = safe_response_to_dict(model_response)
-        
+
         if 'id' in response_dict:
             await ctx.info(f"Model created successfully with ID: {response_dict['id']}")
         else:
             await ctx.info("Model created successfully")
-        
+
         await ctx.report_progress(progress=100, total=100)
         return response_dict
-        
+
     except ValueError as e:
         await ctx.error(f"Validation error: {str(e)}")
         return create_error_response(
@@ -139,7 +139,7 @@ async def add_model(
     meta={"version": "1.0", "author": "HexagonML"}
 )
 async def update_model(
-    ctx: Context, 
+    ctx: Context,
     model_id: str,
     name: str = None,
     description: str = None,
@@ -155,7 +155,7 @@ async def update_model(
     create_sweetviz: bool = True
 ) -> dict:
     """Update a machine learning model's metadata or configuration in the ModelManager service.
-    
+
     Args:
         ctx: The MCP server context containing authentication and configuration.
         model_id: The unique identifier of the model to update (required).
@@ -171,7 +171,7 @@ async def update_model(
         model_file_path: New path to the model file.
         target_column: New target column name in the dataset.
         create_sweetviz: Whether to generate a Sweetviz report for data visualization (default: True).
-        
+
     Returns:
         dict: Response from the ModelManager service with updated model details.
     """
@@ -182,7 +182,7 @@ async def update_model(
             message="Model ID is required",
             error_type="ValidationError"
         )
-    
+
     # Build model data dict with only provided values
     model_data = {}
     field_mapping = {
@@ -198,11 +198,11 @@ async def update_model(
         "model_file_path": model_file_path,
         "target_column": target_column
     }
-    
+
     for field, value in field_mapping.items():
         if value is not None:
             model_data[field] = value
-    
+
     # Validate file paths against traversal sequences
     path_fields = ["training_dataset", "test_dataset", "pred_dataset", "actual_dataset", "model_file_path"]
     path_errors = [
@@ -227,24 +227,24 @@ async def update_model(
 
     await ctx.info(f"Updating model: {model_id}")
     await ctx.report_progress(progress=20, total=100)
-    
+
     try:
         model_client = get_mm_client(ctx, 'model')
         await ctx.report_progress(progress=40, total=100)
-        
+
         update_response = await asyncio.to_thread(model_client.patch_model, model_data, model_id, create_sweetviz)
         await ctx.report_progress(progress=80, total=100)
-        
+
         result = safe_response_to_dict(update_response)
-        
+
         if result.get('status') == 'error':
             await ctx.error(f"Failed to update model: {result.get('message', 'Unknown error')}")
         else:
             await ctx.info(f"Model updated successfully: {model_id}")
-        
+
         await ctx.report_progress(progress=100, total=100)
         return result
-        
+
     except ValueError as e:
         await ctx.error(f"Validation error: {str(e)}")
         return create_error_response(
@@ -266,11 +266,11 @@ async def update_model(
 )
 async def delete_model(ctx: Context, model_id: str) -> dict:
     """Delete a machine learning model from the ModelManager service permanently.
-    
+
     Args:
         ctx: The MCP server context containing authentication and configuration.
         model_id: The unique identifier of the model to delete (required).
-        
+
     Returns:
         dict: Response from the ModelManager service confirming deletion.
     """
@@ -281,23 +281,23 @@ async def delete_model(ctx: Context, model_id: str) -> dict:
             message="Model ID is required",
             error_type="ValidationError"
         )
-    
+
     await ctx.info(f"Deleting model: {model_id}")
     await ctx.report_progress(progress=20, total=100)
-    
+
     try:
         model_client = get_mm_client(ctx, 'model')
         await ctx.report_progress(progress=40, total=100)
-        
+
         delete_response = await asyncio.to_thread(model_client.delete_model, model_id)
         await ctx.report_progress(progress=80, total=100)
-        
+
         result = safe_response_to_dict(delete_response)
         await ctx.info(f"Model deleted successfully: {model_id}")
         await ctx.report_progress(progress=100, total=100)
-        
+
         return result
-        
+
     except ValueError as e:
         await ctx.error(f"Validation error: {str(e)}")
         return create_error_response(
@@ -319,12 +319,12 @@ async def delete_model(ctx: Context, model_id: str) -> dict:
 )
 async def get_latest_metrics(ctx: Context, model_id: str, metric_type: str = None) -> dict:
     """Retrieve the latest performance metrics for a model from the ModelManager service.
-    
+
     Args:
         ctx: The MCP server context containing authentication and configuration.
         model_id: The unique identifier of the model to retrieve metrics for (required).
         metric_type: Optional type of metrics to retrieve (e.g., 'accuracy', 'precision', 'recall').
-        
+
     Returns:
         dict: Response containing the latest metrics data or error information.
     """
@@ -335,23 +335,23 @@ async def get_latest_metrics(ctx: Context, model_id: str, metric_type: str = Non
             message="Model ID is required",
             error_type="ValidationError"
         )
-    
+
     await ctx.info(f"Retrieving latest metrics for model: {model_id}")
     await ctx.report_progress(progress=20, total=100)
-    
+
     try:
         model_client = get_mm_client(ctx, 'model')
         await ctx.report_progress(progress=40, total=100)
-        
+
         metrics_response = await asyncio.to_thread(model_client.get_latest_metrics, model_id, metric_type)
         await ctx.report_progress(progress=80, total=100)
-        
+
         result = safe_response_to_dict(metrics_response)
         await ctx.info(f"Metrics retrieved successfully for model: {model_id}")
         await ctx.report_progress(progress=100, total=100)
-        
+
         return result
-        
+
     except ValueError as e:
         await ctx.error(f"Validation error: {str(e)}")
         return create_error_response(

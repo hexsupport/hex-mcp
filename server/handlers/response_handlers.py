@@ -1,25 +1,32 @@
 """
-Response formatters for forecast API responses.
+Response formatters for ModelManager API responses.
 
 This module classifies and formats diverse API response shapes into a uniform
-LLM-friendly structure. Each of the 13 documented API response scenarios maps to
-a dedicated handler, ensuring consistent response structure and appropriate
-LLM guidance across all paths.
+LLM-friendly structure. Each documented scenario maps to a dedicated handler,
+ensuring consistent response structure across all tools: forecasting_tools,
+modelcard_tools, and forecasting_governance_tools.
+
+Each handler returns a ``prompt_hint`` field that maps to an MCP prompt
+template defined in ``forecasting_prompts.py``, replacing the previous
+inline ``_llm_instructions`` approach.
 
 Scenario tags:
-1. unparseable_string       - raw input is a plain string (JSON parse failed)
-2. unparseable_non_dict     - raw input is not a dict or string
-3. validation_error         - success=false, no available_options (missing param, invalid format)
-4. invalid_filter_combination - success=false, data has available_options
-5. internal_server_error    - success=false, status_code=500
-6. embedding_service_busy   - success=false, 404 with "busy processing embeddings"
-7. usecase_not_found        - success=false, status_code=404
-8. semantic_candidates      - success=true, data has semantic_candidates
-9. multiple_candidates      - success=true, data has candidates (exact/partial matches)
-10. filter_error_in_success - success=true, data has filter_error object
-11. forecast_with_data      - success=true, data has non-empty forecast list
-12. empty_forecast          - success=true, data has empty forecast list
-13. unknown                 - unrecognized response shape
+1.  unparseable_string        - raw input is a plain string (JSON parse failed)
+2.  unparseable_non_dict      - raw input is not a dict or string
+3.  validation_error          - success=false, no available_options (missing param, invalid format)
+4.  invalid_filter_combination - success=false, data has available_options
+5.  internal_server_error     - success=false, status_code=500
+6.  embedding_service_busy    - success=false, 404 with "busy processing embeddings"
+7.  usecase_not_found         - success=false, status_code=404
+8.  semantic_candidates       - success=true, data has semantic_candidates
+9.  multiple_candidates       - success=true, data has candidates (exact/partial matches)
+10. filter_error_in_success   - success=true, data has filter_error object
+11. forecast_with_data        - success=true, data has non-empty forecast list
+12. empty_forecast            - success=true, data has empty forecast list
+13. modelcard_created         - top-level has modelcard_id and pdf_url (full creation success)
+14. modelcard_pending         - top-level has modelcard_id but no pdf_url (creation in progress)
+15. governance_report         - success=true, data has governance report content
+16. unknown                   - unrecognized response shape
 """
 
 from typing import Any, Callable, Dict
@@ -27,7 +34,7 @@ from typing import Any, Callable, Dict
 
 def classify_response(raw: Any) -> str:
     """
-    Classify API response into one of 13 scenario tags.
+    Classify API response into one of 16 scenario tags.
 
     Checks are ordered from most specific to least specific to avoid
     misclassification. For example, filter_error must be checked before
@@ -38,7 +45,7 @@ def classify_response(raw: Any) -> str:
         raw: The raw API response (may be dict, string, or other type)
 
     Returns:
-        Scenario tag as string: one of the 13 tags or "unknown"
+        Scenario tag as string: one of the 16 tags or "unknown"
     """
     # Type guards (can't call .get() safely on non-dicts)
     if isinstance(raw, str):
@@ -46,6 +53,12 @@ def classify_response(raw: Any) -> str:
 
     if not isinstance(raw, dict):
         return "unparseable_non_dict"
+
+    # ── Modelcard responses (flat structure, no success envelope) ──
+    if "modelcard_id" in raw:
+        if raw.get("pdf_url") or raw.get("modelcard_pdf_id"):
+            return "modelcard_created"
+        return "modelcard_pending"
 
     # Extract success and data safely
     success = raw.get("success")
@@ -92,6 +105,10 @@ def classify_response(raw: Any) -> str:
         if "filter_error" in data:
             return "filter_error_in_success"
 
+        # Governance report (check before forecast)
+        if "report_url" in data or "governance_data" in data or "report_id" in data:
+            return "governance_report"
+
         # Forecast data (happy path)
         forecast = data.get("forecast")
         if isinstance(forecast, list):
@@ -113,14 +130,7 @@ def handle_unparseable_string(raw: str) -> Dict[str, Any]:
         "status_code": None,
         "message": "Failed to parse API response",
         "raw_input": raw[:200],  # Truncate for safety
-        "_llm_instructions": {
-            "role": "You are reporting a system-level error to the user.",
-            "rules": [
-                "The API response could not be parsed.",
-                "This is a system error, not a user input error.",
-                "Suggest the user try again or contact support if the problem persists.",
-            ],
-        },
+        "prompt_hint": "error_recovery_guide",
     }
 
 
@@ -130,14 +140,7 @@ def handle_unparseable_non_dict(raw: Any) -> Dict[str, Any]:
         "status": "error",
         "status_code": None,
         "message": f"API response has unexpected type: {type(raw).__name__}",
-        "_llm_instructions": {
-            "role": "You are reporting a system-level error to the user.",
-            "rules": [
-                "The API returned an unexpected response type.",
-                "This is a system error, not a user input error.",
-                "Suggest the user try again or contact support.",
-            ],
-        },
+        "prompt_hint": "error_recovery_guide",
     }
 
 
@@ -149,19 +152,7 @@ def handle_validation_error(raw: Dict[str, Any], data: Dict[str, Any]) -> Dict[s
         "status": "error",
         "status_code": raw.get("status_code"),
         "message": error_msg,
-        "_llm_instructions": {
-            "role": "You are helping a user fix an invalid forecast request.",
-            "rules": [
-                "The API rejected the request because a required parameter is missing or invalid.",
-                f"Error: {error_msg}",
-                "Check that you provided:",
-                "  - Either usecase_id or usecase_name",
-                "  - series (the time-series to forecast)",
-                "  - condition_one (primary filter/dimension)",
-                "  - usecase_id must be an integer",
-                "Ask the user to correct their request and try again.",
-            ],
-        },
+        "prompt_hint": "error_recovery_guide",
     }
 
 
@@ -171,11 +162,12 @@ def handle_invalid_filter_combination(raw: Dict[str, Any], data: Dict[str, Any])
     invalid_filters = data.get("invalid_filters") or {}
     available_options = data.get("available_options") or {}
 
-    result = {
+    result: Dict[str, Any] = {
         "status": "error",
         "status_code": raw.get("status_code"),
         "message": error_msg,
         "invalid_filters": invalid_filters,
+        "prompt_hint": "filter_selection_guide",
     }
 
     # Include available options for user guidance (always include, even if empty)
@@ -186,25 +178,10 @@ def handle_invalid_filter_combination(raw: Dict[str, Any], data: Dict[str, Any])
         "facilityToUnit": available_options.get("facilityToUnit", {}),
     }
 
-    result["_llm_instructions"] = {
-        "role": "You are helping a business user fix invalid forecast filters.",
-        "rules": [
-            "The API rejected the request because the filter values are not valid for this usecase.",
-            f"Invalid filters: {', '.join(k for k, v in invalid_filters.items() if v)}",
-            "Present the available_options to the user as readable lists (not raw JSON):",
-            "  - Available series options",
-            "  - Available condition_one values",
-            "  - If condition_one is selected, show the valid condition_two values in 'conditions'",
-            "  - If condition_two is selected, show the valid condition_three values in 'facilityToUnit'",
-            "Suggest a corrected request using only the values shown in available_options.",
-            "Be concise and friendly.",
-        ],
-    }
-
     return result
 
 
-def handle_internal_server_error(raw: Dict[str, Any], data: Dict[str, Any]) -> Dict[str, Any]:
+def handle_internal_server_error(raw: Dict[str, Any], _data: Dict[str, Any]) -> Dict[str, Any]:
     """Handle 500 server errors."""
     error_msg = raw.get("error", "Internal server error")
     error_type = raw.get("error_type")
@@ -214,39 +191,21 @@ def handle_internal_server_error(raw: Dict[str, Any], data: Dict[str, Any]) -> D
         "status_code": 500,
         "message": error_msg,
         "error_type": error_type,
-        "_llm_instructions": {
-            "role": "You are reporting a server error to the user.",
-            "rules": [
-                "The forecast API encountered an unexpected error (HTTP 500).",
-                f"Error: {error_msg}",
-                "This is not caused by the user's input — it's a server-side problem.",
-                "Suggest the user should retry their request after waiting a few moments.",
-                "If the problem persists after retry attempts, the user should contact support with the error message above.",
-            ],
-        },
+        "prompt_hint": "error_recovery_guide",
     }
 
 
-def handle_embedding_service_busy(raw: Dict[str, Any], data: Dict[str, Any]) -> Dict[str, Any]:
+def handle_embedding_service_busy(_raw: Dict[str, Any], _data: Dict[str, Any]) -> Dict[str, Any]:
     """Handle embedding service busy (occurs when semantic search is overloaded)."""
     return {
         "status": "error",
         "status_code": 404,
         "message": "The embedding service is busy processing requests. Please try again in a few seconds.",
-        "_llm_instructions": {
-            "role": "You are reporting a transient server overload to the user.",
-            "rules": [
-                "The semantic search service (used to find usecases by name) is temporarily busy.",
-                "This is a transient issue, not a permanent failure.",
-                "Suggest the user:",
-                "  - Retry their request in 5–10 seconds.",
-                "  - Alternatively, provide a usecase_id instead of usecase_name to bypass semantic search.",
-            ],
-        },
+        "prompt_hint": "error_recovery_guide",
     }
 
 
-def handle_usecase_not_found(raw: Dict[str, Any], data: Dict[str, Any]) -> Dict[str, Any]:
+def handle_usecase_not_found(raw: Dict[str, Any], _data: Dict[str, Any]) -> Dict[str, Any]:
     """Handle usecase not found (404)."""
     error_msg = raw.get("error", "No usecase found")
 
@@ -254,22 +213,11 @@ def handle_usecase_not_found(raw: Dict[str, Any], data: Dict[str, Any]) -> Dict[
         "status": "error",
         "status_code": 404,
         "message": error_msg,
-        "_llm_instructions": {
-            "role": "You are helping a user find the correct usecase.",
-            "rules": [
-                "The API could not find a usecase matching the provided name or ID.",
-                f"Error: {error_msg}",
-                "The user should:",
-                "  - Double-check the usecase name spelling.",
-                "  - Try a different usecase name (e.g., shorter or with different keywords).",
-                "  - If they know the usecase ID, provide that instead of the name.",
-                "  - Suggest they list available usecases if that option is available.",
-            ],
-        },
+        "prompt_hint": "error_recovery_guide",
     }
 
 
-def handle_semantic_candidates(raw: Dict[str, Any], data: Dict[str, Any]) -> Dict[str, Any]:
+def handle_semantic_candidates(_raw: Dict[str, Any], data: Dict[str, Any]) -> Dict[str, Any]:
     """Handle semantic candidates: no exact match, but similar usecases found."""
     usecase_name = data.get("usecase_name", "?")
     candidates = data.get("semantic_candidates", [])
@@ -280,22 +228,11 @@ def handle_semantic_candidates(raw: Dict[str, Any], data: Dict[str, Any]) -> Dic
         "message": f"No exact match for '{usecase_name}'. Showing semantically similar usecases.",
         "requested_name": usecase_name,
         "candidates": candidates,
-        "_llm_instructions": {
-            "role": "You are helping a user select the correct usecase from similar options.",
-            "rules": [
-                f"No exact usecase match for '{usecase_name}'.",
-                "The API found semantically similar usecases, ranked by similarity (lower distance = better match).",
-                "Present the candidate list to the user with their names and similarity scores.",
-                "Ask the user to:",
-                "  - Pick the usecase that best matches what they're looking for.",
-                "  - Provide the usecase ID to retry the request.",
-                "If none of the options match, suggest they try a different search term.",
-            ],
-        },
+        "prompt_hint": "error_recovery_guide",
     }
 
 
-def handle_multiple_candidates(raw: Dict[str, Any], data: Dict[str, Any]) -> Dict[str, Any]:
+def handle_multiple_candidates(_raw: Dict[str, Any], data: Dict[str, Any]) -> Dict[str, Any]:
     """Handle multiple candidates: exact/partial matches found."""
     usecase_name = data.get("usecase_name", "?")
     candidates = data.get("candidates", [])
@@ -306,21 +243,11 @@ def handle_multiple_candidates(raw: Dict[str, Any], data: Dict[str, Any]) -> Dic
         "message": f"Multiple usecases match '{usecase_name}'. Please select one.",
         "requested_name": usecase_name,
         "candidates": candidates,
-        "_llm_instructions": {
-            "role": "You are helping a user select the correct usecase from multiple matches.",
-            "rules": [
-                f"Multiple usecases match the name '{usecase_name}'.",
-                "Present the candidate list to the user with their IDs and full names.",
-                "Ask the user to:",
-                "  - Pick the usecase that matches their intent.",
-                "  - Provide the usecase ID to retry the request.",
-                "If the user is unsure, suggest they ask clarifying questions about each option.",
-            ],
-        },
+        "prompt_hint": "error_recovery_guide",
     }
 
 
-def handle_filter_error_in_success(raw: Dict[str, Any], data: Dict[str, Any]) -> Dict[str, Any]:
+def handle_filter_error_in_success(_raw: Dict[str, Any], data: Dict[str, Any]) -> Dict[str, Any]:
     """Handle filter error inside a success response.
 
     This occurs when the usecase resolves successfully, but the filter
@@ -332,7 +259,7 @@ def handle_filter_error_in_success(raw: Dict[str, Any], data: Dict[str, Any]) ->
     invalid_filters = filter_error.get("invalid_filters") or {}
     available_options = filter_error.get("available_options") or {}
 
-    result = {
+    result: Dict[str, Any] = {
         "status": "error",
         "status_code": 200,
         "message": error_msg,
@@ -341,6 +268,7 @@ def handle_filter_error_in_success(raw: Dict[str, Any], data: Dict[str, Any]) ->
             "name": data.get("usecase", {}).get("name"),
         },
         "invalid_filters": invalid_filters,
+        "prompt_hint": "filter_selection_guide",
     }
 
     if available_options:
@@ -351,25 +279,10 @@ def handle_filter_error_in_success(raw: Dict[str, Any], data: Dict[str, Any]) ->
             "facilityToUnit": available_options.get("facilityToUnit", {}),
         }
 
-    result["_llm_instructions"] = {
-        "role": "You are helping a business user fix invalid forecast filters.",
-        "rules": [
-            "The usecase was found, but the filter values are not valid.",
-            f"Invalid filters: {', '.join(k for k, v in invalid_filters.items() if v)}",
-            "Present the available_options to the user as readable lists (not raw JSON):",
-            "  - Available series options",
-            "  - Available condition_one values",
-            "  - Valid condition_two values for the selected condition_one",
-            "  - Valid condition_three values for the selected condition_two",
-            "Suggest a corrected request using only the values shown in available_options.",
-            "Be concise and friendly.",
-        ],
-    }
-
     return result
 
 
-def handle_forecast_with_data(raw: Dict[str, Any], data: Dict[str, Any]) -> Dict[str, Any]:
+def handle_forecast_with_data(_raw: Dict[str, Any], data: Dict[str, Any]) -> Dict[str, Any]:
     """Handle successful response with non-empty forecast data."""
     usecase_info = data.get("usecase") or {}
     filters = data.get("filters_applied") or {}
@@ -396,25 +309,11 @@ def handle_forecast_with_data(raw: Dict[str, Any], data: Dict[str, Any]) -> Dict
         "last_actual_update": data.get("last_actual_update"),
         "forecast_count": total_points,
         "forecast": raw_points,
-        "_llm_instructions": {
-            "role": "You are presenting forecast data to a non-technical business user.",
-            "rules": [
-                "The forecast contains time-series predictions with confidence intervals.",
-                "Each forecast entry has: 'Forecast Date', 'Forecast Value', 'value_type', 'rgn_cd', 'fac_id_cd'.",
-                "The filters applied show which dimensions the forecast covers.",
-                "The 'last_actual_update' field indicates how fresh the underlying data is.",
-                "When presenting to the user:",
-                "  - Round displayed values to 2 decimal places.",
-                "  - Describe the date range covered by the forecast.",
-                "  - Summarize the trend (increasing, decreasing, stable).",
-                "  - Present as a concise narrative; do not echo raw JSON or field names.",
-                "Mention filters_applied to contextualize the forecast.",
-            ],
-        },
+        "prompt_hint": "forecast_presentation_guide",
     }
 
 
-def handle_empty_forecast(raw: Dict[str, Any], data: Dict[str, Any]) -> Dict[str, Any]:
+def handle_empty_forecast(_raw: Dict[str, Any], data: Dict[str, Any]) -> Dict[str, Any]:
     """Handle successful response with empty forecast list."""
     usecase_info = data.get("usecase") or {}
     filters = data.get("filters_applied") or {}
@@ -439,40 +338,59 @@ def handle_empty_forecast(raw: Dict[str, Any], data: Dict[str, Any]) -> Dict[str
         "last_actual_update": data.get("last_actual_update"),
         "forecast_count": 0,
         "forecast": [],
-        "_llm_instructions": {
-            "role": "You are reporting that no forecast data is available.",
-            "rules": [
-                "The usecase was found and filters are valid, but no forecast data exists for this combination.",
-                "This is not an error — the data simply hasn't been generated yet or doesn't exist.",
-                "Show the user the filters they applied and suggest:",
-                "  - Broadening the filter criteria (e.g., selecting a different region or facility).",
-                "  - Checking if data exists for a different prediction_period.",
-                "  - Checking back later if forecasts are being generated on a schedule.",
-                "Mention the 'last_actual_update' to help them understand data freshness.",
-            ],
-        },
+        "prompt_hint": "forecast_presentation_guide",
     }
 
 
-def handle_unknown(raw: Dict[str, Any], data: Dict[str, Any]) -> Dict[str, Any]:
+def handle_modelcard_created(raw: Dict[str, Any], _data: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle successful modelcard creation with PDF available."""
+    return {
+        "status": "success",
+        "message": "Successfully created modelcard",
+        "modelcard_id": raw.get("modelcard_id"),
+        "modelcard_pdf_id": raw.get("modelcard_pdf_id"),
+        "pdf_url": raw.get("pdf_url"),
+        "prompt_hint": "modelcard_guide",
+    }
+
+
+def handle_modelcard_pending(raw: Dict[str, Any], _data: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle modelcard creation where PDF generation is still in progress."""
+    return {
+        "status": "pending",
+        "message": "Modelcard created but PDF is not yet available",
+        "modelcard_id": raw.get("modelcard_id"),
+        "prompt_hint": "modelcard_guide",
+    }
+
+
+def handle_governance_report(_raw: Dict[str, Any], data: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle successful forecast governance report response."""
+    usecase_info = data.get("usecase") or {}
+
+    return {
+        "status": "success",
+        "status_code": 200,
+        "message": "Successfully generated forecast governance report",
+        "usecase": {
+            "id": usecase_info.get("id"),
+            "name": usecase_info.get("name"),
+        },
+        "report_id": data.get("report_id"),
+        "report_url": data.get("report_url"),
+        "governance_data": data.get("governance_data"),
+        "prompt_hint": "governance_report_guide",
+    }
+
+
+def handle_unknown(raw: Dict[str, Any], _data: Dict[str, Any]) -> Dict[str, Any]:
     """Handle unrecognized response shape."""
     return {
         "status": "unknown",
         "status_code": raw.get("status_code"),
         "message": "API response shape was not recognized by the formatter",
         "raw_keys": list(raw.keys()) if isinstance(raw, dict) else None,
-        "_llm_instructions": {
-            "role": "You are reporting an unexpected API response to the user.",
-            "rules": [
-                "The API returned a response that the formatter doesn't recognize.",
-                "This may indicate an API version mismatch or an unexpected server state.",
-                "Show the user the response keys or raw data cautiously.",
-                "Suggest the user:",
-                "  - Check if their request was valid.",
-                "  - Contact support with the full error message.",
-                "If safe, show the raw response to help debug.",
-            ],
-        },
+        "prompt_hint": "error_recovery_guide",
     }
 
 
@@ -489,6 +407,9 @@ HANDLER_MAP: Dict[str, Callable[[Dict[str, Any], Dict[str, Any]], Dict[str, Any]
     "filter_error_in_success": handle_filter_error_in_success,
     "forecast_with_data": handle_forecast_with_data,
     "empty_forecast": handle_empty_forecast,
+    "modelcard_created": handle_modelcard_created,
+    "modelcard_pending": handle_modelcard_pending,
+    "governance_report": handle_governance_report,
     "unknown": handle_unknown,
 }
 
@@ -504,7 +425,7 @@ def dispatch_response(raw: Any) -> Dict[str, Any]:
         raw: The raw API response (dict, string, or other type)
 
     Returns:
-        A formatted response dict with status, message, data, and _llm_instructions
+        A formatted response dict with status, message, data, and prompt_hint
     """
     scenario = classify_response(raw)
 

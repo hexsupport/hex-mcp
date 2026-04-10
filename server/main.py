@@ -13,11 +13,11 @@ from config import mcp, config
 from clients import server_lifespan
 
 # Import all tool modules to register their MCP tools
-import model_tools
-import usecase_tools
-import modelcard_tools
-import forecasting_tools
-# Note: validators is imported by forecasting_tools, utils is imported by other modules
+import tools.model_tools
+import tools.usecase_tools
+import tools.modelcard_tools
+import tools.forecasting_tools
+import tools.forecasting_governance_tools
 
 async def main():
     """Main entry point for the MCP server.

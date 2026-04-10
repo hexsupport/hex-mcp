@@ -9,11 +9,11 @@ from config import mcp, config
 from clients import server_lifespan
 
 # Import all tool modules to register their MCP tools
-# import usecase_tools
-# import model_tools
-import modelcard_tools
-import forecasting_tools
-import forecasting_prompts 
+# import tools.usecase_tools
+# import tools.model_tools
+import tools.modelcard_tools
+import tools.forecasting_tools
+import handlers.prompt_handler
 import health
 
 # The server is ready - fastmcp will handle the rest

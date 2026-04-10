@@ -8,7 +8,8 @@ which provide standardized documentation for machine learning models.
 from fastmcp import Context
 from config import mcp
 from clients import get_mm_client
-from utils import safe_response_to_dict, create_error_response, normalize_tool_response
+from utils import safe_response_to_dict, create_error_response
+from handlers import dispatch_response
 import asyncio
 
 @mcp.tool(
@@ -27,7 +28,7 @@ async def create_modelcard(
     condition_three: str = None,
 ) -> dict:
     """Create a forecasting modelcard for a usecase with required parameters.
-    
+
     Args:
         ctx: The MCP server context containing authentication and configuration.
         usecase_name: Name of the usecase. Used for fuzzy/semantic lookup when usecase_id is not provided. REQUIRED.
@@ -36,7 +37,7 @@ async def create_modelcard(
         condition_one: Region filter (rgn_cd). Maps to conditionOne/region in forecasting data. REQUIRED.
         condition_two: Facility filter (fac_id_cd). Maps to conditionTwo/facility (optional).
         condition_three: Unit filter (unit_id). Maps to conditionThree/unit (optional).
-        
+
     Returns:
         dict: Response containing the created modelcard data or error information.
     """
@@ -47,14 +48,14 @@ async def create_modelcard(
             message="series is required for forecasting modelcard creation",
             error_type="ValidationError",
         )
-    
+
     if not condition_one or not condition_one.strip():
         await ctx.error("condition_one is required")
         return create_error_response(
             message="condition_one is required for forecasting modelcard creation",
             error_type="ValidationError",
         )
-    
+
     # Validate usecase identifier
     usecase_id_clean = usecase_id.strip() if isinstance(usecase_id, str) else None
     usecase_name_clean = usecase_name.strip() if isinstance(usecase_name, str) else None
@@ -65,13 +66,13 @@ async def create_modelcard(
             message="At least one of usecase_id or usecase_name must be provided",
             error_type="ValidationError",
         )
-    
+
     # Build data dict with all provided parameters
     data = {
         "series": series.strip(),
         "condition_one": condition_one.strip()
     }
-    
+
     if usecase_id_clean:
         data["usecase_id"] = usecase_id_clean
     if usecase_name_clean:
@@ -87,7 +88,7 @@ async def create_modelcard(
     try:
         modelcard_client = get_mm_client(ctx, 'modelcard')
         await ctx.report_progress(progress=40, total=100)
-        
+
         resp = await asyncio.to_thread(modelcard_client.create_modelcard, data)
         await ctx.report_progress(progress=80, total=100)
 
@@ -104,20 +105,8 @@ async def create_modelcard(
         await ctx.info("Modelcard created successfully")
         await ctx.report_progress(progress=100, total=100)
 
-        required_success_fields = ["pdf_url", "modelcard_pdf_id", "modelcard_id"]
-        has_all_success_fields = all(
-            field in response_data and response_data.get(field) not in (None, "")
-            for field in required_success_fields
-        )
+        return dispatch_response(response_data)
 
-        if has_all_success_fields:
-            return normalize_tool_response(
-                response_data,
-                success_message="Successfully created modelcard",
-            )
-
-        return normalize_tool_response(response_data)
-        
     except ValueError as e:
         await ctx.error(f"Validation error: {str(e)}")
         return create_error_response(

@@ -1,11 +1,6 @@
 services:
   hex-mm-mcp:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      args:
-        PORT: ${PORT:-9000}
-    image: hex-mm-mcp:latest
+    image: modelmanagerdev/mcp:v10
     container_name: hex-mm-mcp
     ports:
       - "${PORT:-9000}:${PORT:-9000}"

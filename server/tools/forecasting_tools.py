@@ -8,9 +8,8 @@ retrieving forecasts and validating forecast payloads.
 from fastmcp import Context
 from config import mcp
 from clients import get_mm_client
-from validators import validate_forecast_payload
-from utils import safe_response_to_dict, create_error_response
-from response_handlers import dispatch_response
+from utils import validate_forecast_payload, safe_response_to_dict, create_error_response
+from handlers import dispatch_response
 import asyncio
 
 
@@ -18,14 +17,14 @@ def format_api_response(raw: dict) -> dict:
     """Adapt any forecast API response into an LLM-friendly structure.
 
     Delegates to the response_handlers module which classifies the response
-    into one of 13 documented scenarios and applies the appropriate formatter.
-    Every response includes a 'status' field and '_llm_instructions' for the LLM.
+    into one of 16 documented scenarios and applies the appropriate formatter.
+    Every response includes a 'status' field and 'prompt_hint' for the LLM.
 
     Args:
         raw: The raw API response (may be dict, string, or other type)
 
     Returns:
-        dict: Formatted response with status, contextual fields, and _llm_instructions
+        dict: Formatted response with status, contextual fields, and prompt_hint
     """
     return dispatch_response(raw)
 

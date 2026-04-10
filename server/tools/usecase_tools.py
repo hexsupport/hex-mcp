@@ -18,7 +18,7 @@ import asyncio
     meta={"version": "1.0", "author": "HexagonML"}
 )
 async def add_usecase(
-    ctx: Context, 
+    ctx: Context,
     name: str,
     usecase_type: str = "General",
     author: str = None,
@@ -39,7 +39,7 @@ async def add_usecase(
     release_tab: bool = False
 ) -> dict:
     """Create a new usecase in the ModelManager service.
-    
+
     Args:
         ctx: The MCP server context.
         name: Name of the usecase (required).
@@ -60,7 +60,7 @@ async def add_usecase(
         performance_tab: Enable performance tab for forecasting.
         ab_testing_tab: Enable A/B testing tab for forecasting.
         release_tab: Enable release tab for forecasting.
-        
+
     Returns:
         dict: Response from the ModelManager service with the created usecase details.
     """
@@ -71,7 +71,7 @@ async def add_usecase(
             message="Usecase name is required",
             error_type="ValidationError"
         )
-    
+
     # Build usecase_info dict
     usecase_info = {
         "name": name,
@@ -84,7 +84,7 @@ async def add_usecase(
         "performance_data_selection": performance_data_selection or "",
         "applications": applications or ""
     }
-    
+
     # Validate notification emails
     if notification_emails:
         invalid_emails = validate_emails(notification_emails)
@@ -103,7 +103,7 @@ async def add_usecase(
         forecasting_fields["notification_emails"] = notification_emails
     if forecasting_template:
         forecasting_fields["forecasting_template"] = forecasting_template
-    
+
     # Build forecasting_feature_tabs dict if any tab parameters are provided
     forecasting_feature_tabs = {}
     if any([result_tab, series_tab, condition_tab, performance_tab, ab_testing_tab, release_tab]):
@@ -115,33 +115,33 @@ async def add_usecase(
             "ab_testing_tab": ab_testing_tab,
             "release_tab": release_tab
         }
-    
+
     await ctx.info(f"Creating new usecase: {name}")
     await ctx.report_progress(progress=20, total=100)
-    
+
     try:
         usecase_client = get_mm_client(ctx, 'usecase')
         await ctx.report_progress(progress=40, total=100)
-        
+
         response = await asyncio.to_thread(
-            usecase_client.post_usecase, 
-            usecase_info, 
-            forecasting_fields, 
+            usecase_client.post_usecase,
+            usecase_info,
+            forecasting_fields,
             forecasting_feature_tabs
         )
         await ctx.report_progress(progress=80, total=100)
-        
+
         result = safe_response_to_dict(response)
-        
+
         usecase_id = result.get('id') or result.get('usecase_id')
         if usecase_id:
             await ctx.info(f"Usecase created successfully with ID: {usecase_id}")
         else:
             await ctx.info("Usecase created successfully")
-        
+
         await ctx.report_progress(progress=100, total=100)
         return result
-        
+
     except ValueError as e:
         await ctx.error(f"Validation error: {str(e)}")
         return create_error_response(
@@ -162,7 +162,7 @@ async def add_usecase(
     meta={"version": "1.0", "author": "HexagonML"}
 )
 async def update_usecase(
-    ctx: Context, 
+    ctx: Context,
     usecase_id: str,
     name: str = None,
     usecase_type: str = None,
@@ -184,7 +184,7 @@ async def update_usecase(
     release_tab: bool = None
 ) -> dict:
     """Update an existing usecase in the ModelManager service.
-    
+
     Args:
         ctx: The MCP server context.
         usecase_id: The unique identifier of the usecase to update (required).
@@ -206,7 +206,7 @@ async def update_usecase(
         performance_tab: New performance tab setting for forecasting.
         ab_testing_tab: New A/B testing tab setting for forecasting.
         release_tab: New release tab setting for forecasting.
-        
+
     Returns:
         dict: Response from the ModelManager service with the updated usecase details.
     """
@@ -217,10 +217,10 @@ async def update_usecase(
             message="Usecase ID is required",
             error_type="ValidationError"
         )
-    
+
     # Build usecase_data dict with only provided values
     usecase_data = {}
-    
+
     # Add usecase_info fields if provided
     usecase_info = {}
     info_fields = {
@@ -234,11 +234,11 @@ async def update_usecase(
         "performance_data_selection": performance_data_selection,
         "applications": applications
     }
-    
+
     for field, value in info_fields.items():
         if value is not None:
             usecase_info[field] = value
-    
+
     # Validate notification emails
     if notification_emails is not None:
         invalid_emails = validate_emails(notification_emails)
@@ -257,7 +257,7 @@ async def update_usecase(
         forecasting_fields["notification_emails"] = notification_emails
     if forecasting_template is not None:
         forecasting_fields["forecasting_template"] = forecasting_template
-    
+
     # Add forecasting_feature_tabs if any tab parameters are provided
     forecasting_feature_tabs = {}
     if any(tab is not None for tab in [result_tab, series_tab, condition_tab, performance_tab, ab_testing_tab, release_tab]):
@@ -269,7 +269,7 @@ async def update_usecase(
             "ab_testing_tab": ab_testing_tab,
             "release_tab": release_tab
         }
-    
+
     # Combine all data
     if usecase_info:
         usecase_data["usecase_info"] = usecase_info
@@ -277,7 +277,7 @@ async def update_usecase(
         usecase_data["forecasting_fields"] = forecasting_fields
     if forecasting_feature_tabs:
         usecase_data["forecasting_feature_tabs"] = forecasting_feature_tabs
-    
+
     # Check if there's anything to update
     if not usecase_data:
         await ctx.error("No update data provided")
@@ -285,27 +285,27 @@ async def update_usecase(
             message="At least one field must be provided for update",
             error_type="ValidationError"
         )
-    
+
     await ctx.info(f"Updating usecase: {usecase_id}")
     await ctx.report_progress(progress=20, total=100)
-    
+
     try:
         usecase_client = get_mm_client(ctx, 'usecase')
         await ctx.report_progress(progress=40, total=100)
-        
+
         response = await asyncio.to_thread(usecase_client.patch_usecase, usecase_data, usecase_id)
         await ctx.report_progress(progress=80, total=100)
-        
+
         result = safe_response_to_dict(response)
-        
+
         if result.get('status') == 'error':
             await ctx.error(f"Failed to update usecase: {result.get('message', 'Unknown error')}")
         else:
             await ctx.info(f"Usecase updated successfully: {usecase_id}")
-        
+
         await ctx.report_progress(progress=100, total=100)
         return result
-        
+
     except ValueError as e:
         await ctx.error(f"Validation error: {str(e)}")
         return create_error_response(
@@ -327,11 +327,11 @@ async def update_usecase(
 )
 async def delete_usecase(ctx: Context, usecase_id: str) -> dict:
     """Delete a usecase from the ModelManager service permanently.
-    
+
     Args:
         ctx: The MCP server context containing authentication and configuration.
         usecase_id: The unique identifier of the usecase to delete (required).
-        
+
     Returns:
         dict: Response from the ModelManager service confirming deletion.
     """
@@ -342,23 +342,23 @@ async def delete_usecase(ctx: Context, usecase_id: str) -> dict:
             message="Usecase ID is required",
             error_type="ValidationError"
         )
-    
+
     await ctx.info(f"Deleting usecase: {usecase_id}")
     await ctx.report_progress(progress=20, total=100)
-    
+
     try:
         usecase_client = get_mm_client(ctx, 'usecase')
         await ctx.report_progress(progress=40, total=100)
-        
+
         delete_response = await asyncio.to_thread(usecase_client.delete_usecase, usecase_id)
         await ctx.report_progress(progress=80, total=100)
-        
+
         result = safe_response_to_dict(delete_response)
         await ctx.info(f"Usecase deleted successfully: {usecase_id}")
         await ctx.report_progress(progress=100, total=100)
-        
+
         return result
-        
+
     except ValueError as e:
         await ctx.error(f"Validation error: {str(e)}")
         return create_error_response(
@@ -380,23 +380,23 @@ async def delete_usecase(ctx: Context, usecase_id: str) -> dict:
 )
 async def get_usecase_data(ctx: Context) -> dict:
     """Retrieve and summarize all usecases from the ModelManager API.
-    
+
     Args:
         ctx: The MCP server context containing authentication and configuration.
-        
+
     Returns:
         dict: Response containing summarized usecase data or error information.
     """
     await ctx.info("Retrieving all usecases")
     await ctx.report_progress(progress=20, total=100)
-    
+
     try:
         usecase_client = get_mm_client(ctx, 'usecase')
         await ctx.report_progress(progress=40, total=100)
-        
+
         usecases_response = await asyncio.to_thread(usecase_client.get_usecases)
         await ctx.report_progress(progress=80, total=100)
-        
+
         data = safe_response_to_dict(usecases_response)
         await ctx.info(f"Retrieved {len(data) if isinstance(data, list) else 0} usecases")
         await ctx.report_progress(progress=100, total=100)
@@ -405,7 +405,7 @@ async def get_usecase_data(ctx: Context) -> dict:
             {"summary": data},
             success_message="Successfully retrieved usecases",
         )
-        
+
     except ValueError as e:
         await ctx.error(f"Validation error: {str(e)}")
         return create_error_response(

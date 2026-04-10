@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from fastmcp import Context
-from mmanager.mmanager import Model, Usecase, ModelCard, ModelInsights, ForecastingApi
+from mmanager import Model, Usecase, ModelCard, ModelInsights, ForecastingApi, ForecastGovernanceReport
 
 @dataclass
 class MMContext:
@@ -74,7 +74,8 @@ def get_mm_client(ctx: Context, client_type: str):
         'usecase': Usecase,
         'modelcard': ModelCard,
         'modelinsights': ModelInsights,
-        'forecast': ForecastingApi
+        'forecast': ForecastingApi,
+        'governance': ForecastGovernanceReport,
     }
     
     if client_type not in client_map:

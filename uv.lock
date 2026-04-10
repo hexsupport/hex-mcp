@@ -472,7 +472,7 @@ requires-dist = [
     { name = "fastmcp", specifier = ">=2.13.1" },
     { name = "ipython", specifier = ">=8.12.0" },
     { name = "loguru", specifier = ">=0.7.2" },
-    { name = "mmanager", specifier = "==2.4.1" },
+    { name = "mmanager", specifier = "==2.4.2" },
     { name = "python-dotenv", specifier = ">=1.0.0" },
     { name = "requests", specifier = ">=2.31.0" },
 ]
@@ -787,7 +787,7 @@ wheels = [
 
 [[package]]
 name = "mmanager"
-version = "2.4.1"
+version = "2.4.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "colorama" },
@@ -795,9 +795,9 @@ dependencies = [
     { name = "ipython", version = "9.2.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "requests" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/04/00/dc546a780896b3f79c31a1e469b59f78c9b6e179ecf00ca6d7d254bc5ab1/mmanager-2.4.1.tar.gz", hash = "sha256:b98d465d6d1c12f9d24e871d5ef9b2d19f6af2e64bad6b96fba51e63f4ab54f9", size = 91508385, upload-time = "2026-02-26T16:28:11.344Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/23/19/e7e08a1a5f149b579eafde92dc4e2b12edc41b6e7d73bbc3b257ba28c973/mmanager-2.4.2.tar.gz", hash = "sha256:d3d37046c37d51c5890a0161070e930e003d8b843aa0d9ddab797042113d69a3", size = 91510673, upload-time = "2026-04-10T04:22:55.078Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/88/99/f9b7a95502674992c5e1c0f891d47a8fcdfc84180723fc198dba69f3547c/mmanager-2.4.1-py3-none-any.whl", hash = "sha256:79a87f8371eef4b307f056188ba2dd00bfa7729124c604c452004b34ecff3e58", size = 91547875, upload-time = "2026-02-26T16:27:11.092Z" },
+    { url = "https://files.pythonhosted.org/packages/0a/74/b9ae977beb78ed74768c1ed63c35ece2ed7ceba65671c68545ab363390fe/mmanager-2.4.2-py3-none-any.whl", hash = "sha256:87c8a27a2968e3f1f2ab4b546325533aa326e680f64077803a0051b7b34b955b", size = 91551353, upload-time = "2026-04-10T04:22:09.87Z" },
 ]
 
 [[package]]
