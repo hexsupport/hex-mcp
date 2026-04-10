@@ -109,6 +109,12 @@ def classify_response(raw: Any) -> str:
         if data.get("report") is not None:
             return "governance_report"
 
+        # Modelcard responses wrapped in success envelope
+        if "modelcard_id" in data or "modelcard_pdf_id" in data:
+            if data.get("pdf_url") or data.get("modelcard_pdf_id"):
+                return "modelcard_created"
+            return "modelcard_pending"
+
         # Forecast data (happy path)
         forecast = data.get("forecast")
         if isinstance(forecast, list):
@@ -342,24 +348,52 @@ def handle_empty_forecast(_raw: Dict[str, Any], data: Dict[str, Any]) -> Dict[st
     }
 
 
-def handle_modelcard_created(raw: Dict[str, Any], _data: Dict[str, Any]) -> Dict[str, Any]:
-    """Handle successful modelcard creation with PDF available."""
-    return {
+def handle_modelcard_created(raw: Dict[str, Any], data: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle successful modelcard creation with PDF available.
+
+    Supports both flat responses (modelcard_id at top level) and
+    wrapped responses (modelcard_id inside data envelope).
+    """
+    # Prefer data (wrapped) over raw (flat) for each field
+    modelcard_id = data.get("modelcard_id") or raw.get("modelcard_id")
+    modelcard_pdf_id = data.get("modelcard_pdf_id") or raw.get("modelcard_pdf_id")
+    pdf_url = data.get("pdf_url") or raw.get("pdf_url")
+
+    result: Dict[str, Any] = {
         "status": "success",
         "message": "Successfully created modelcard",
-        "modelcard_id": raw.get("modelcard_id"),
-        "modelcard_pdf_id": raw.get("modelcard_pdf_id"),
-        "pdf_url": raw.get("pdf_url"),
+        "modelcard_id": modelcard_id,
+        "modelcard_pdf_id": modelcard_pdf_id,
+        "pdf_url": pdf_url,
         "prompt_hint": "modelcard_guide",
     }
 
+    # Include usecase info and conditions when available (wrapped response)
+    if data.get("usecase_id") or data.get("usecase_name"):
+        result["usecase"] = {
+            "id": data.get("usecase_id"),
+            "name": data.get("usecase_name"),
+        }
+    if data.get("series"):
+        result["series"] = data.get("series")
+        result["conditions"] = {
+            "condition_1": data.get("condition_1"),
+            "condition_2": data.get("condition_2"),
+            "condition_3": data.get("condition_3"),
+        }
+    # Include governance/metrics data if present
+    if data.get("data"):
+        result["metrics"] = data.get("data")
 
-def handle_modelcard_pending(raw: Dict[str, Any], _data: Dict[str, Any]) -> Dict[str, Any]:
+    return result
+
+
+def handle_modelcard_pending(raw: Dict[str, Any], data: Dict[str, Any]) -> Dict[str, Any]:
     """Handle modelcard creation where PDF generation is still in progress."""
     return {
         "status": "pending",
         "message": "Modelcard created but PDF is not yet available",
-        "modelcard_id": raw.get("modelcard_id"),
+        "modelcard_id": data.get("modelcard_id") or raw.get("modelcard_id"),
         "prompt_hint": "modelcard_guide",
     }
 
