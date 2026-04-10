@@ -95,18 +95,18 @@ def classify_response(raw: Any) -> str:
             return "unknown"
 
         # Disambiguation responses (most specific for success=true paths)
-        if "semantic_candidates" in data:
+        if data.get("semantic_candidates", None) is not None:
             return "semantic_candidates"
 
-        if "candidates" in data:
+        if data.get("candidates", None) is not None:
             return "multiple_candidates"
 
         # Filter error inside a success response (before checking forecast)
-        if "filter_error" in data:
+        if data.get("filter_error", None) is not None:
             return "filter_error_in_success"
 
         # Governance report (check before forecast)
-        if "report_url" in data or "governance_data" in data or "report_id" in data:
+        if data.get("report") is not None:
             return "governance_report"
 
         # Forecast data (happy path)
@@ -364,21 +364,53 @@ def handle_modelcard_pending(raw: Dict[str, Any], _data: Dict[str, Any]) -> Dict
     }
 
 
-def handle_governance_report(_raw: Dict[str, Any], data: Dict[str, Any]) -> Dict[str, Any]:
-    """Handle successful forecast governance report response."""
+def handle_governance_report(raw: Dict[str, Any], data: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle successful forecast governance report response.
+
+    Supports multiple response structures:
+    - Wrapped with usecase object: data.usecase.id, data.report_id, data.report_url
+    - Flat with usecase_id: data.usecase_id, data.usecase_name, data.report.id/pdf_url
+    - Flat at raw level: raw.usecase_id, raw.report (for non-wrapped responses)
+    """
+    # Try structure with nested usecase object first
     usecase_info = data.get("usecase") or {}
+    report_id = data.get("report_id")
+    report_url = data.get("report_url")
+    governance_data = data.get("governance_data")
+
+    # Structure with usecase_id at data level and report nested
+    if not usecase_info and "usecase_id" in data:
+        usecase_info = {
+            "id": data.get("usecase_id"),
+            "name": data.get("usecase_name"),
+        }
+        report = data.get("report") or {}
+        report_id = report.get("id")
+        report_url = report.get("pdf_url")
+        governance_data = report
+
+    # Flat structure at raw level (no success envelope)
+    if not usecase_info and "usecase_id" in raw:
+        usecase_info = {
+            "id": raw.get("usecase_id"),
+            "name": raw.get("usecase_name"),
+        }
+        report = raw.get("report") or {}
+        report_id = report.get("id")
+        report_url = report.get("pdf_url")
+        governance_data = report
 
     return {
         "status": "success",
-        "status_code": 200,
+        "status_code": raw.get("status_code", 200),
         "message": "Successfully generated forecast governance report",
         "usecase": {
             "id": usecase_info.get("id"),
             "name": usecase_info.get("name"),
         },
-        "report_id": data.get("report_id"),
-        "report_url": data.get("report_url"),
-        "governance_data": data.get("governance_data"),
+        "report_id": report_id,
+        "report_url": report_url,
+        "governance_data": governance_data,
         "prompt_hint": "governance_report_guide",
     }
 

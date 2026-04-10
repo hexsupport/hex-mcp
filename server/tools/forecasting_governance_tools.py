@@ -95,7 +95,7 @@ async def get_forecast_governance_report(
         governance_client = get_mm_client(ctx, 'governance')
         await ctx.report_progress(progress=40, total=100)
 
-        resp = await asyncio.to_thread(governance_client.get_forecast_governance_report, data)
+        resp = await asyncio.to_thread(governance_client.generate_report, data)
         await ctx.report_progress(progress=80, total=100)
 
         if isinstance(resp, Exception):
@@ -105,14 +105,12 @@ async def get_forecast_governance_report(
                 error_type="APIError",
             )
 
+        # HTTP-level error (4xx / 5xx) — parse body so handlers can
+        # extract structured fields like available_options / invalid_filters
         if hasattr(resp, 'status_code') and resp.status_code >= 400:
-            error_msg = getattr(resp, 'text', str(resp))
-            await ctx.error(f"API error (status {resp.status_code}): {error_msg}")
-            return create_error_response(
-                message=f"The upstream API returned an error (HTTP {resp.status_code}).",
-                error_type="APIError",
-                status_code=resp.status_code,
-            )
+            error_body = safe_response_to_dict(resp)
+            await ctx.error(f"API error (status {resp.status_code}): {error_body.get('error', resp.status_code)}")
+            return dispatch_response(error_body)
 
         response_data = safe_response_to_dict(resp)
         await ctx.report_progress(progress=100, total=100)

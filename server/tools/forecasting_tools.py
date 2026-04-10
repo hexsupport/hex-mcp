@@ -121,11 +121,12 @@ async def get_forecast(
                 error_type="APIError",
             )
 
-        # HTTP-level error (4xx / 5xx) — extract the body for formatting
+        # HTTP-level error (4xx / 5xx) — parse body so handlers can
+        # extract structured fields like available_options / invalid_filters
         if hasattr(resp, 'status_code') and resp.status_code >= 400:
-            error_msg = getattr(resp, 'text', str(resp))
-            await ctx.error(f"API error (status {resp.status_code}): {error_msg}")
-            return format_api_response(error_msg)
+            error_body = safe_response_to_dict(resp)
+            await ctx.error(f"API error (status {resp.status_code}): {error_body.get('error', resp.status_code)}")
+            return format_api_response(error_body)
 
         response_data = safe_response_to_dict(resp)
         return format_api_response(response_data)

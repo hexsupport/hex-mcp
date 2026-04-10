@@ -13,6 +13,7 @@ from clients import server_lifespan
 # import tools.model_tools
 import tools.modelcard_tools
 import tools.forecasting_tools
+import tools.forecasting_governance_tools
 import handlers.prompt_handler
 import health
 

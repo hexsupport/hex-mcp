@@ -92,14 +92,12 @@ async def create_modelcard(
         resp = await asyncio.to_thread(modelcard_client.create_modelcard, data)
         await ctx.report_progress(progress=80, total=100)
 
+        # HTTP-level error (4xx / 5xx) — parse body so handlers can
+        # extract structured fields like available_options / invalid_filters
         if hasattr(resp, 'status_code') and resp.status_code >= 400:
-            error_msg = getattr(resp, 'text', str(resp))
-            await ctx.error(f"API error (status {resp.status_code}): {error_msg}")
-            return create_error_response(
-                message=f"The upstream API returned an error (HTTP {resp.status_code}).",
-                error_type="APIError",
-                status_code=resp.status_code
-            )
+            error_body = safe_response_to_dict(resp)
+            await ctx.error(f"API error (status {resp.status_code}): {error_body.get('error', resp.status_code)}")
+            return dispatch_response(error_body)
 
         response_data = safe_response_to_dict(resp)
         await ctx.info("Modelcard created successfully")

@@ -17,3 +17,4 @@ venv
 .claude/
 .mcp.json
 .windsurfrules
+.vscode/
